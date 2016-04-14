@@ -71,10 +71,10 @@ module ioport(
   input [7:0] dir);
 
   genvar i;
-  generate 
+  generate
     for (i = 0; i < 8; i = i + 1) begin : io
-      // 1001   PIN_OUTPUT_REGISTERED_ENABLE 
-      //     01 PIN_INPUT 
+      // 1001   PIN_OUTPUT_REGISTERED_ENABLE
+      //     01 PIN_INPUT
       SB_IO #(.PIN_TYPE(6'b1001_01)) _io (
         .PACKAGE_PIN(pins[i]),
         .CLOCK_ENABLE(we),
@@ -113,12 +113,12 @@ module inpin(
         .D_IN_0(rd));
 endmodule
 
-module top(input pclk, 
+module top(input pclk,
 
-           output D1, 
-           output D2, 
-           output D3, 
-           output D4, 
+           output D1,
+           output D2,
+           output D3,
+           output D4,
            output D5,
            output D6,   // new on hx8kbb
            output D7,   // "
@@ -135,12 +135,12 @@ module top(input pclk,
            inout PIO1_02,    // PMOD 1 // FIXME: these will be assigned from right to left starting with top row of J2, (oriented to read the pin numbers) but only the first 24 of all those for now.
            inout PIO1_03,    // J2 5
            inout PIO1_04,    // J2 9
-           inout PIO1_05,    
-           inout PIO1_06,    
-           inout PIO1_07,    
-           inout PIO1_08,    
+           inout PIO1_05,
+           inout PIO1_06,
+           inout PIO1_07,
+           inout PIO1_08,
            inout PIO1_09,    // FIXME: ADD IN ALL THE OTHER PINS, EXTEND PORTS.
-           
+
 
            inout PIO0_02,    // HDR1 1
            inout PIO0_03,    // HDR1 2
@@ -151,7 +151,7 @@ module top(input pclk,
            inout PIO0_08,    // HDR1 7
            inout PIO0_09,    // HDR1 8
 
-           
+
 
            inout PIO2_10,    // HDR2 1
            inout PIO2_11,    // HDR2 2
@@ -173,7 +173,7 @@ module top(input pclk,
   assign pll_reset = reset; // resets are all active low in this design.
   wire resetq; // note port changed, .pcf needs update too.
   assign resetq =  pll_lock;
- 
+
   SB_PLL40_CORE #(.FEEDBACK_PATH("PHASE_AND_DELAY"),
                   .DELAY_ADJUSTMENT_MODE_FEEDBACK("FIXED"),
                   .DELAY_ADJUSTMENT_MODE_RELATIVE("FIXED"),
@@ -182,7 +182,7 @@ module top(input pclk,
                   .FDA_FEEDBACK(4'b0000),
                   .FDA_RELATIVE(4'b0000),
                   .DIVR(4'b1111),
-                  .DIVF(7'b0110001), 
+                  .DIVF(7'b0110001),
                   .DIVQ(3'b011), //  1..6
                   .FILTER_RANGE(3'b001),
                  ) uut (
@@ -197,12 +197,12 @@ module top(input pclk,
                         // port writes are affected by the next on stack. (I assume because the larger chip means slightly more routing delay, as parts end up more widely distributed). Problem shows up as `-1 leds` not turning all leds on, and `-1 0 leds drop` not turning them all off, yet `-1 -1 leds drop` will turn them all on.
   // end adv PLL
   */
- 
+
   // begin alt PLL
   wire clk;
   wire resetq;
- 
-  
+
+
   SB_PLL40_CORE #(.FEEDBACK_PATH("SIMPLE"),
                   .PLLOUT_SELECT("GENCLK"),
                   .DIVR(4'b0000),
@@ -217,7 +217,7 @@ module top(input pclk,
                          .RESETB(reset),
                          .BYPASS(1'b0)
                         );
-  // end alt PLL                     
+  // end alt PLL
 
   wire io_rd, io_wr;
   wire [15:0] mem_addr;
@@ -322,18 +322,18 @@ module top(input pclk,
      .rx_data(uart0_data));
 
   wire [7:0] LEDS;
- 
-  
+
+
    // ######   LEDS   ##########################################
 
-  
+
 
   ioport _leds (.clk(clk),
                .pins({D8, D7, D6, D5, D4, D3, D2, D1}),
                .we(io_wr_ & io_addr_[2]),
                .wd(dout_),
                .rd(LEDS),
-               .dir(8'hff)); 
+               .dir(8'hff));
 
   wire [2:0] PIOS;
   wire w8 = io_wr_ & io_addr_[3];
@@ -344,18 +344,19 @@ module top(input pclk,
 
   // ######   RING OSCILLATOR   ###############################
 
-  wire [1:0] buffers_in, buffers_out;
-  assign buffers_in = {buffers_out[0:0], ~buffers_out[1]};
-  SB_LUT4 #(
-          .LUT_INIT(16'd2)
-  ) buffers [1:0] (
-          .O(buffers_out),
-          .I0(buffers_in),
-          .I1(1'b0),
-          .I2(1'b0),
-          .I3(1'b0)
-  );
-  wire random = ~buffers_out[1];
+  // wire [1:0] buffers_in, buffers_out;
+  // assign buffers_in = {buffers_out[0:0], ~buffers_out[1]};
+  // SB_LUT4 #(
+  //         .LUT_INIT(16'd2)
+  // ) buffers [1:0] (
+  //         .O(buffers_out),
+  //         .I0(buffers_in),
+  //         .I1(1'b0),
+  //         .I2(1'b0),
+  //         .I3(1'b0)
+  // );
+  // wire random = ~buffers_out[1];
+	wire random = 1'b0; // Disabled so as not to confuse icetime
 
   // ######   IO PORTS   ######################################
 

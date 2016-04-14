@@ -71,10 +71,10 @@ module ioport(
   input [7:0] dir);
 
   genvar i;
-  generate 
+  generate
     for (i = 0; i < 8; i = i + 1) begin : io
-      // 1001   PIN_OUTPUT_REGISTERED_ENABLE 
-      //     01 PIN_INPUT 
+      // 1001   PIN_OUTPUT_REGISTERED_ENABLE
+      //     01 PIN_INPUT
       SB_IO #(.PIN_TYPE(6'b1001_01)) _io (
         .PACKAGE_PIN(pins[i]),
         .CLOCK_ENABLE(we),
@@ -298,20 +298,21 @@ module top(input pclk, output D1, output D2, output D3, output D4, output D5,
   outpin pio4 (.clk(clk), .we(w8), .pin(PIO1_20), .wd(dout_[4]), .rd(PIOS[4]));
 
   // ######   RING OSCILLATOR   ###############################
-
-  wire [1:0] buffers_in, buffers_out;
-  assign buffers_in = {buffers_out[0:0], ~buffers_out[1]};
-  SB_LUT4 #(
-          .LUT_INIT(16'd2)
-  ) buffers [1:0] (
-          .O(buffers_out),
-          .I0(buffers_in),
-          .I1(1'b0),
-          .I2(1'b0),
-          .I3(1'b0)
-  );
-  wire random = ~buffers_out[1];
-
+	//
+  // wire [1:0] buffers_in, buffers_out;
+  // assign buffers_in = {buffers_out[0:0], ~buffers_out[1]};
+  // SB_LUT4 #(
+  //         .LUT_INIT(16'd2)
+  // ) buffers [1:0] (
+  //         .O(buffers_out),
+  //         .I0(buffers_in),
+  //         .I1(1'b0),
+  //         .I2(1'b0),
+  //         .I3(1'b0)
+  // );
+  // wire random = ~buffers_out[1];
+	//
+	wire random = 1'b0; // disabling ring oscillator because it confuses icetime
   // ######   IO PORTS   ######################################
 
   /*        bit   mode    device
