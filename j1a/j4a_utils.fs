@@ -18,3 +18,5 @@
 : stopall 0 on1 0 on2 0 on3 ; \ tell the cores to do nothing next
 : killall kill1 kill2 kill3 ; \ stop and reset all cores.
 : coreId ( -- coreId ) $8000 io@ ; \ this IO register looks different to each core.
+: ms 0 do 1496 0 do loop loop ; \ overwrites j1a's ms definition so ms works as expected.
+: ms8 0 do 187 0 do loop loop ; \eighths of ms for finer timing resolution.
