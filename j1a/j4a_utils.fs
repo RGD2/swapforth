@@ -1,9 +1,10 @@
 
 \ Driver words for j4a's core management
+\ you should #include j4a_utils.fs
 \ Cores 1 2 and 3 have pigeonholes attached via the IO subsystem.
-\ These pigeonholes are all *read* from $4000,
+\ These pigeonholes are all *read* from $4000, by code already in swapforth.
 \ but which one is read depends on which core is doing the reading.
-\ Core zero has no pigeonhole - it always get 0. Manage it as you would a j1a,
+\ Core zero has no pigeonhole - it always gets 0. Manage it as you would a j1a,
 \ (ie, save a startup word in init, etc.) or just leave it idle for you to talk to.
 \ Memory (and actually the ALU too) is shared, but each 'core' gets it's own private stacks.
 \ Each core runs at the same speed regardless of what the others are doing, 1/4 as fast as a j1a would run.
@@ -19,4 +20,4 @@
 : killall kill1 kill2 kill3 ; \ stop and reset all cores.
 : coreId ( -- coreId ) $8000 io@ ; \ this IO register looks different to each core.
 : ms 0 do 1496 0 do loop loop ; \ overwrites j1a's ms definition so ms works as expected.
-: ms8 0 do 187 0 do loop loop ; \eighths of ms for finer timing resolution.
+: cycles 0 do loop ; \ approx cycles delay.
