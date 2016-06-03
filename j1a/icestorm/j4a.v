@@ -74,7 +74,7 @@ module ioport(
   genvar i;
   generate
     for (i = 0; i < pbits; i = i + 1) begin : io
-      // 1001   PIN_OUTPUT_REGISTERED_ENABLE
+	  // 1001	PIN_OUTPUT_REGISTERED_ENABLE
       //     01 PIN_INPUT
       SB_IO #(.PIN_TYPE(6'b1001_01)) _io (
         .PACKAGE_PIN(pins[i]),
@@ -127,7 +127,6 @@ module top(input pclk,
            output PIOS_03,    // flash CS
 
            inout [15:0] PA,
-		   inout [7:0] PB,
 
            input MISO,
            output MOSI,
@@ -274,17 +273,18 @@ spimaster _spi (	.clk(clk),
 				.SCL(SCL),
 				.MISO(MISO));
 
-  // ######   GPIO near SPI   ##########################################
+  // ######  HW MULTIPLIER    ################################
 
-reg [7:0] extra_dir;   // 1:output, 0:input
-wire [7:0] extra_in;
+wire [31:0] muld;
+wire mulready;
+wire [1:0] absel = {2{io_wr_}} & io_addr_[5:4];
+mult16x16 _mul (.clk(clk),
+                .resetq(resetq),
+			    .we(absel),
+			    .din(dout_),
+			    .dout(muld),
+			    .ready(mulready));
 
-ioport #(.pbits(8)) _extraio (.clk(clk),
-               .pins(PB),
-               .we(io_wr_ & io_addr_[4]),
-               .wd(dout_[7:0]),
-               .rd(extra_in),
-               .dir(extra_dir));
 
   // ######   UART   ##########################################
 
@@ -350,8 +350,8 @@ ioport #(.pbits(8)) _extraio (.clk(clk),
       0002  1     r/w     PMOD direction
       0004  2     r/w     LEDS
       0008  3     r/w     misc.out
-	  0010  4     r/w     extra GPIO (byte only)
-	  0020  5     r/w     extra GPIO direction
+	  0010  4     r/w     Multiplier A / Low word result
+	  0020  5     r/w     Multiplier B / High word result
       0040  6     w       SPI 8 bit write (low byte only)
       00c0  6+7   w       SPI 16 bit write. Handle CS pins yourself - use GPIO
 	  0040  6     r       SPI word read (after a word write)
@@ -402,10 +402,10 @@ ioport #(.pbits(8)) _extraio (.clk(clk),
     (io_addr_[ 1] ? {pmod_dir}                                                : 16'd0)|
     (io_addr_[ 2] ? {LEDS}                                                    : 16'd0)|
     (io_addr_[ 3] ? {13'd0, PIOS}                                             : 16'd0)|
-	(io_addr_[ 4] ? {extra_in}                                                 : 16'd0)|
-    (io_addr_[ 5] ? {extra_dir}                                                : 16'd0)|
+	(io_addr_[ 4] ? {muld[15:0]}                                              : 16'd0)|
+    (io_addr_[ 5] ? {muld[31:16]}                                             : 16'd0)|
     (io_addr_[ 6] ? {spirx}                                                   : 16'd0)|
-    (io_addr_[ 7] ? {15'd0, ~spirunning}                                      : 16'd0)|
+    (io_addr_[ 7] ? {14'd0, mulready, ~spirunning}                            : 16'd0)|
     (io_addr_[ 8] ? taskexecn[15:0]                                           : 16'd0)|
     (io_addr_[ 9] ? taskexecn[31:16]                                          : 16'd0)|
     (io_addr_[10] ? taskexecn[47:32]                                          : 16'd0)|
@@ -413,8 +413,6 @@ ioport #(.pbits(8)) _extraio (.clk(clk),
     (io_addr_[13] ? {11'd0, random, 1'b0, PIOS_01, uart0_valid, !uart0_busy}  : 16'd0)|
     (io_addr_[14] ? {taskexec}                                                : 16'd0)|
     (io_addr_[15] ? {14'd0, io_slot_}                                         : 16'd0);
-// so init code can stop all but one slot, or alternatively, restart their task by reading taskexec then executing it, or else going into a reboot poll loop until given something to do.
-
 
   reg boot, s0, s1;
 
@@ -435,7 +433,8 @@ ioport #(.pbits(8)) _extraio (.clk(clk),
       if (io_addr_[10]) taskexecn[47:32] <= dout_;
       kill_slot_rq <= io_addr_[14] ? dout_[3:0] : 4'b0;
     end  // it is even possible to assign the same task to multiple slots, although this isn't recommended.
-    else case ({io_rd_ , io_addr_[14], io_slot_}) // if the assigned XT has bit 0 set ( 1 or ) then it will be cleared after being read once.
+    else
+	case ({io_rd_ , io_addr_[14], io_slot_}) // if the assigned XT has bit 0 set ( 1 or ) then it will be cleared after being read once.
         4'b1101:  taskexecn[15:0] <= taskexecn[0] ? 16'b0 : taskexecn[15:0];
         4'b1110:  taskexecn[31:16] <= taskexecn[16] ? 16'b0 : taskexecn[31:16];
         4'b1111:  taskexecn[47:32] <= taskexecn[32] ? 16'b0 : taskexecn[47:32];
@@ -443,9 +442,6 @@ ioport #(.pbits(8)) _extraio (.clk(clk),
 
     if (io_wr_ & io_addr_[1])
       pmod_dir <= dout_;
-
-	if (io_wr_ & io_addr_[5])
-	  extra_dir <= dout_[7:0];
 
     if (io_wr_ & io_addr_[11])
       {boot, s1, s0} <= dout_[2:0];

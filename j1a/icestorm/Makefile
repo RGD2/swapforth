@@ -2,7 +2,7 @@ VERILOGS = j1a.v uart.v ../verilog/j1.v ../verilog/stack2.v
 
 VERILOGS8k = j1a8k.v uart.v ../verilog/j1.v ../verilog/stack2.v
 
-VERILOGS8k4 = j4a.v uart.v ../verilog/j1.v ../verilog/stack2.v ../verilog/j4.v ../verilog/stack2pipe4.v ../verilog/greycount.v ../verilog/SPImaster.v
+VERILOGS8k4 = j4a.v uart.v ../verilog/*.v
 
 
 SUBDIRS = ..
@@ -18,14 +18,14 @@ j1a.bin: $(VERILOGS) j1a.pcf Makefile ../build/ram.v
 
 j1a8k.bin: $(VERILOGS8k) j1a8k.pcf Makefile ../build/ram.v
 	yosys  -q -p "synth_ice40 -top top -abc2 -blif j1a8k.blif" $(VERILOGS8k)
-	arachne-pnr -d 8k -p j1a8k.pcf j1a8k.blif -o j1a8k.txt
+	arachne-pnr -d 8k -P ct256 -p j1a8k.pcf j1a8k.blif -o j1a8k.txt
 	#skipped:# icebox_explain j1a8k.txt > j1a8k.ex
 	icepack j1a8k.txt j1a8k0.bin
 	icemulti -p0 j1a8k0.bin > j1a8k.bin && rm j1a8k0.bin
 
 j4a.bin: $(VERILOGS8k4) j4a.pcf Makefile ../build/ram.v
 	yosys  -q -p "synth_ice40 -top top -abc2 -blif j4a.blif" $(VERILOGS8k4)
-	arachne-pnr -r -m 500 -d 8k -p j4a.pcf j4a.blif -o j4a.txt
+	arachne-pnr -r -m 500 -d 8k -P ct256 -p j4a.pcf j4a.blif -o j4a.txt
 	#skipped:# icebox_explain j4a.txt > j4a.ex
 	icepack j4a.txt j4a0.bin
 	icemulti -p0 j4a0.bin > j4a.bin && rm j4a0.bin
@@ -38,6 +38,12 @@ j1a: j1a.bin
 
 j4a: j4a.bin
 	sudo iceprog j4a.bin
+
+j1a_timing: j1a.bin
+	icetime -tmd hx1k j1a.txt
+
+j4a_timing: j4a.bin
+	icetime -tmd hx8k j4a.txt
 
 
 $(SUBDIRS):
@@ -54,3 +60,5 @@ clean:
 .PHONY: j1a8k
 .PHONY: j1a
 .PHONY: j4a
+.PHONY: j1a_timing
+.PHONY: j4a_timing

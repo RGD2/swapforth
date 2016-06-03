@@ -6,7 +6,7 @@ build/nuc.hex: cross.fs basewords.fs nuc.fs
 
 bootstrap: build/nuc.hex mkrom.py verilator/bootstrap
 	make -C verilator
-	(cd ./verilator/; ./bootstrap)
+	(cd ./verilator/; sudo ./bootstrap)
 	python mkrom.py
 
 clean:
@@ -14,11 +14,18 @@ clean:
 	make -C icestorm clean
 	make -C verilator clean
 
+sim_connect:
+	make -C verilator sim_connect
+
+j4a_sim_connect:
+	make -C verilator j4a_sim_connect
+
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 
 connect: /dev/ttyUSB1
 	sudo python shell.py -h /dev/ttyUSB1 -p ../common/
+
 
 j4a:
 	make -C icestorm j4a
@@ -55,4 +62,4 @@ mackextload:
 
 endif
 
-.PHONY: connect clean bootstrap mackextload mackextunload macconnect
+.PHONY: connect sim_connect j4a_sim_connect clean bootstrap mackextload mackextunload macconnect
