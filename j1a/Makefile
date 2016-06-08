@@ -23,6 +23,8 @@ j4a_sim_connect:
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
 
+/dev/ttyUSB1: linmodload
+
 connect: /dev/ttyUSB1
 	sudo python shell.py -h /dev/ttyUSB1 -p ../common/
 
@@ -35,6 +37,10 @@ j1a8k:
 
 j1a:
 	make -C icestorm j1a
+
+linmodload:
+	echo "Make sure ice40hx8k breakout board or iceStick is plugged in"
+	sudo modprobe usbserial
 
 endif
 
@@ -55,11 +61,13 @@ j1a: mackextunload
 	make -C icestorm j1a
 
 mackextunload:
+	echo "Unloading com.apple.driver.AppleUSBFTDI for iceprog"
 	sudo kextunload -bundle-id com.apple.driver.AppleUSBFTDI
 
 mackextload:
+	echo "Loading com.apple.driver.AppleUSBFTDI for shell.py"
 	sudo kextload -bundle-id com.apple.driver.AppleUSBFTDI
 
 endif
 
-.PHONY: connect sim_connect j4a_sim_connect clean bootstrap mackextload mackextunload macconnect
+.PHONY: connect sim_connect j4a_sim_connect clean bootstrap mackextload mackextunload macconnect linmodload

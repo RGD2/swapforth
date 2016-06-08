@@ -1,5 +1,6 @@
 
 \ Driver words for j4a's core management
+\ j4a is a quad-barrel processor
 \ you should #include j4a_utils.fs
 \ Cores 1 2 and 3 have pigeonholes attached via the IO subsystem.
 \ These pigeonholes are all *read* from $4000, by code already in swapforth.
@@ -19,5 +20,7 @@
 : stopall 0 on1 0 on2 0 on3 ; \ tell the cores to do nothing next
 : killall kill1 kill2 kill3 ; \ stop and reset all cores.
 : coreId ( -- coreId ) $8000 io@ ; \ this IO register looks different to each core.
-: ms 0 do 1496 0 do loop loop ; \ overwrites j1a's ms definition so ms works as expected.
-: cycles 0 do loop ; \ approx cycles delay.
+: delay750ns ( n -- ) dup if begin 1- dup 0= until then drop ; \ threadsafe delay, no use of do..loop
+: ms dup if begin 1- dup 0= 1332 delay750ns until then drop ;
+\ overwrites j1a's ms definition so ms works as expected.
+\ note that do .. loop isn't threadsafe, because rO (the loop index offset) is a global.
