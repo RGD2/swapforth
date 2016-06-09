@@ -20,7 +20,7 @@
 : stopall 0 on1 0 on2 0 on3 ; \ tell the cores to do nothing next
 : killall kill1 kill2 kill3 ; \ stop and reset all cores.
 : coreId ( -- coreId ) $8000 io@ ; \ this IO register looks different to each core.
-: delay750ns ( n -- ) dup if begin 1- dup 0= until then drop ; \ threadsafe delay, no use of do..loop
-: ms dup if begin 1- dup 0= 1332 delay750ns until then drop ;
+: delay750ns* ( n -- ) dup if begin 1- dup 0= until then drop ; \ threadsafe delay, no use of do..loop
+: ms dup if begin 1- dup 0= 1332 delay750ns* until then drop ;
 \ overwrites j1a's ms definition so ms works as expected.
 \ note that do .. loop isn't threadsafe, because rO (the loop index offset) is a global.
