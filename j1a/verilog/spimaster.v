@@ -17,8 +17,11 @@ wire MOSI_ = dataout[15];
 
 reg SCL_;
 wire MISO_;
+wire ince = ~SCL_;
+
 SB_IO #(.PIN_TYPE(6'b0000_00)) _miso (
     .PACKAGE_PIN(MISO),
+    .CLOCK_ENABLE(ince),
     .INPUT_CLK(clk),
     .D_IN_0(MISO_));
 
@@ -44,6 +47,7 @@ begin
         end
     end
 end
+
 
 SB_IO #(.PIN_TYPE(6'b0101_01)) _scl (
     .PACKAGE_PIN(SCL),
