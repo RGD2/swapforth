@@ -27,9 +27,9 @@ set_io PIOS_01 P11
 set_io PIOS_02 P12
 set_io PIOS_03 R12
 
-set_io MISO N10
+set_io MISO N12
 set_io SCL P10
-set_io MOSI N12
+set_io MOSI N10
 
 set_io PA[0] R16
 set_io PA[1] T16
