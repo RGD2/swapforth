@@ -27,16 +27,17 @@ set_io PIOS_01 P11
 set_io PIOS_02 P12
 set_io PIOS_03 R12
 
-set_io MISO N12
-set_io SCL P10
-set_io MOSI N10
+set_io MISO N12 # in maxrefdes#24 J1 Pin 3
+set_io SCL P10 # out maxrefdes#24 J1 Pin 4
+set_io MOSI N10 # out maxrefdes#24 J1 Pin 2
+# note 3.3V and Gnd connected to maxrefdes#24 J1 pins 6 and 5 respectively also
 
-set_io PA[0] R16
-set_io PA[1] T16
-set_io PA[2] T15
-set_io PA[3] T14
-set_io PA[4] T13
-set_io PA[5] P13
+set_io PA[0] R16 # in ERR maxrefdes#24 J1 Pin 7
+set_io PA[1] T16 # out nCS1 maxrefdes#24 J1 Pin 1
+set_io PA[2] T15 # out nCS2 maxrefdes#24 J1 Pin 8
+set_io PA[3] T14 # out purge mosfet (on is purge-disabled)
+set_io PA[4] T13 # out valve enable control (via optoisolator) 
+set_io PA[5] P13 # in valve ok (via optoisolator)
 set_io PA[6] M11
 set_io PA[7] T11
 
@@ -47,4 +48,4 @@ set_io PA[11] P8
 set_io PA[12] R9
 set_io PA[13] T9
 set_io PA[14] T8
-set_io PA[15] T7
+set_io PA[15] T7 
