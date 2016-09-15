@@ -37,7 +37,7 @@ set_io PA[1] T16 # out nCS1 maxrefdes#24 J1 Pin 1
 set_io PA[2] T15 # out nCS2 maxrefdes#24 J1 Pin 8
 set_io PA[3] T14 # out purge mosfet (on is purge-disabled)
 set_io PA[4] T13 # out valve enable control (via optoisolator) 
-set_io PA[5] P13 # in valve ok (via optoisolator)
+set_io PA[5] P13 # in valve ok (via optoisolator, low is ok, hi is fault)
 set_io PA[6] M11
 set_io PA[7] T11
 
