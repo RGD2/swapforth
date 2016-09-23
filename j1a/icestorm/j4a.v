@@ -68,10 +68,13 @@ module ioport(
   input we,
   input [pbits-1:0] wd,
   output [pbits-1:0] rd,
-  input [pbits-1:0] dir);
+  input [pbits-1:0] dir,
+	input [pbits-1:0] mask);
 
   parameter pbits = 16;
-  genvar i;
+  wire [pbits-1:0] din;
+ genvar i;
+ wire [pbits-1:0] dout;
   generate
     for (i = 0; i < pbits; i = i + 1) begin : io
 	  // 1001	PIN_OUTPUT_REGISTERED_ENABLE
@@ -80,12 +83,13 @@ module ioport(
         .PACKAGE_PIN(pins[i]),
         .CLOCK_ENABLE(we),
         .OUTPUT_CLK(clk),
-        .D_OUT_0(wd[i]),
-        .D_IN_0(rd[i]),
+        .D_OUT_0(dout[i]),
+        .D_IN_0(din[i]),
         .OUTPUT_ENABLE(dir[i]));
+	assign dout[i] = (mask[i])? wd[i] : din[i];
     end
   endgenerate
-
+	assign rd = din;
 endmodule
 
 module outpin(
@@ -128,9 +132,13 @@ module top(input pclk,
 
            inout [15:0] PA,
 
-           input MISO,
+					 input MISO,
            output MOSI,
            output SCL,
+
+					 input MISO2,
+           output MOSI2,
+           output SCL2,
 
            input reset
 );
@@ -256,8 +264,17 @@ module top(input pclk,
                .we(io_wr_ & io_addr_[0]),
                .wd(dout_),
                .rd(pmod_in),
-               .dir(pmod_dir));
+               .dir(pmod_dir),
+		.mask(iomask));
 
+
+  wire [15:0] masked_pmod_dir;
+  genvar i;
+  generate
+    for (i = 0; i < 16; i = i + 1) begin
+      assign masked_pmod_dir[i] = (iomask[i])? dout_[i] : pmod_dir[i];
+    end
+  endgenerate
 
   // ######   SPI   ##########################################
 
@@ -273,8 +290,21 @@ spimaster _spi (	.clk(clk),
 				.SCL(SCL),
 				.MISO(MISO));
 
-  // ######  HW MULTIPLIER    ################################
+wire [15:0] spirx2;
+wire spirunning2;
+spimaster_le _spi2 (	.clk(clk),
+   				.we(io_wr_ & io_addr_[4]),
+				.both(io_addr_[5]),
+				.tx(dout_),
+				.rx(spirx2),
+				.running(spirunning2),
+				.MOSI(MOSI2),
+				.SCL(SCL2),
+				.MISO(MISO2));
 
+
+  // ######  HW MULTIPLIER    ################################
+/* disabled beacuse second SPI peripheral was needed instead.
 wire [31:0] muld;
 wire mulready;
 wire [1:0] absel = {2{io_wr_}} & io_addr_[5:4];
@@ -284,7 +314,7 @@ mult16x16 _mul (.clk(clk),
 			    .din(dout_),
 			    .dout(muld),
 			    .ready(mulready));
-
+*/ 
 
   // ######   UART   ##########################################
 
@@ -318,7 +348,8 @@ mult16x16 _mul (.clk(clk),
                .we(io_wr_ & io_addr_[2]),
                .wd(dout_),
                .rd(LEDS),
-               .dir(16'hffff));
+               .dir(16'hffff),
+	       .mask(iomask));
 
   wire [2:0] PIOS;
   wire w8 = io_wr_ & io_addr_[3];
@@ -345,44 +376,50 @@ mult16x16 _mul (.clk(clk),
 
   // ######   IO PORTS   ######################################
 
-  /*        bit   mode    device
-      0001  0     r/w     PMOD GPIO
-      0002  1     r/w     PMOD direction
-      0004  2     r/w     LEDS
-      0008  3     r/w     misc.out
-	  0010  4     r/w     Multiplier A / Low word result
-	  0020  5     r/w     Multiplier B / High word result
-      0040  6     w       SPI 8 bit write (low byte only)
-      00c0  6+7   w       SPI 16 bit write. Handle CS pins yourself - use GPIO
-	  0040  6     r       SPI word read (after a word write)
-	  0080  7     r       SPI ready (poll with `begin $80 io@ until ` to wait for completion)
+/*
+      bit   mode    device
+0001  0     r/w     PMOD GPIO
+0002  1     r/w     PMOD direction
+0004  2     r/w     LEDS
+0008  3     r/w     misc.out
+0010  4     r/w     second SPI byte write/word read (was multiplier)
+0030  4&5     w     second SPI 16 bit write: this one is little endian, the other big endian.
+0020  5     r       second SPI ready poll, same as below
 
-      0100  8     r/w*    slot 1 task XT
-      0200  9     r/w*    slot 2 task XT
-      0400  10    r/w*    slot 3 task XT
-      - If bit 0 in an XT is set with ` 1 or `, then the task will auto-clear to zero after being read and run once.
-      - All slots are reset at once on a CTRL-C from the shell, which also clears all tasks.
+0040  6       w     SPI 8 bit write (low byte only)
+00c0  6&7     w     SPI 16 bit write. Handle CS pins yourself - use GPIO
+0040  6     r       SPI word read (after a word write)
+0080  7     r       SPI ready (poll with `begin $80 io@ until ` to wait for completion)
 
+0100  8     r/w     slot 1 task XT
+0200  9     r/w     slot 2 task XT
+0400  10    r/w     slot 3 task XT
+                    - If bit 0 in an XT is set with ` 1 or `, then the task will auto-clear to zero after being read and run once.
 
-      0800  11      w     sb_warmboot
-      1000  12    r/w     UART RX, UART TX
-      2000  13    r       misc.in
+0800  11      w     sb_warmboot
+1000  12    r/w     UART RX, UART TX
+2000  13    r       misc.in
 
-      4000  14    r/w    slot task fetch, handled by tasksel in nuc.fs. Write here to selectively reset one or more slots, controlled by setting the low nibble.
+4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
+                    - Write here to selectively reset one or more slots, controlled by setting the low nibble.
 
-      8000  15    r       slot ID (depends only on which slot accesses it) - used by tasksel in nuc.fs. Can be used in parallel tasks to differentiate slots.
+8000  15    r       slot ID (depends only on which slot accesses it) - used by tasksel in nuc.fs. Can be used in parallel tasks to differentiate slots
+8000  15      w     Mask set
+                    - very next io@ or io! by *the same* core will use this as a mask
+                    - After that next access, will reset to all true 
+                    - Cleared bits in mask on next io read from anything will read as zero
+                    - Only set bits in mask on a write to ioport or ioport direction will be *changed*
+                    - This makes it easy to only set or read particular bits in a port from multiple thread.
+*/
 
-      This IO should only be used right after boot, and swapforth must be modified so that only slot ID 0, which is slot 0, will continue to execute main and ultimately quit, which should be modified to initialise and run itself and others via execution tokens stored in a set of eight variables which should be included in swapforth. The inital slot 0 task should start the three initial tasks, then waiting for just long enough for all to have started, before setting the main tasks and exiting to the programmer's serial interface. It is not necessary to wait until a task has completed before assigning a new task, only to wait for the initially assigned task to begin.
+  reg [15:0] iomask_preset[3:0];
+  wire [15:0] iomask;
+  assign iomask = iomask_preset[io_slot_];
 
-      The practical upshot of all this is that the j1a will initially behave to the programmer like a (one quarter speed until pipelining optimisation is added - then possibly exactly as fast) j1a. When the programmer is happy with the operation of a task, (s)he manually writes the execution token for the compiled init and runtime words into the exec slots for concurrent task testing.
-
-      During concurrent testing/debug, task0 may continue to be used as if a j1a, except that memory changes made by running task will be visible. The timing of operation running this way for development from compiled code will be the same regardless of what other tasks are running, unless the operation depends upon some handshaking between tasks. In this way timing critical code can be developed and left running for the remainder of development and modification/debug without ever changing it's timing and operation, yet enabling the programmer to continue to modify the running system.
-
-      When happy with the entire system including one to three concurrently running tasks, (s)he manually writes the init and exec tokens into those six variables, then tests reboot start up with a CTRL-C, which always reboots all slots. If all is well, (s)he does a `#flash build/nuc.hex`, exits, and rebuilds the system with `make -C icestorm j4a.bin`. When the rebuilt system is booted, it will run as per it's operation after the CTRL-C, but will still be able to be connected to and developed further or debugged, or left standalone for embedded application.
-
-      It may be worth changing this to reserve slot 0 entirely for the developer, whilst allowing say slot 3 to start and kill the other two.
-      So of those two time critical things could be done in one, and less-time-critical multitasking in the other. It would even be possible then to have the managing task implement a soft-realtime OS with or without preemption on the one slot, whilst handling the io hardware by running a hard-real time scheduler on the other.
-  */
+  always@(posedge clk) begin
+	if(io_wr_ | io_rd_)
+		iomask_preset[io_slot_] <= (io_addr_[15] & io_wr_) ? dout_ : 16'hFFFF;
+  end
 
   reg [15:0] taskexec;
   reg [47:0] taskexecn;
@@ -398,21 +435,21 @@ mult16x16 _mul (.clk(clk),
 
 
   assign io_din =
-    (io_addr_[ 0] ? {pmod_in}                                                 : 16'd0)|
+   ((io_addr_[ 0] ? {pmod_in}                                                 : 16'd0)|
     (io_addr_[ 1] ? {pmod_dir}                                                : 16'd0)|
     (io_addr_[ 2] ? {LEDS}                                                    : 16'd0)|
     (io_addr_[ 3] ? {13'd0, PIOS}                                             : 16'd0)|
-	(io_addr_[ 4] ? {muld[15:0]}                                              : 16'd0)|
-    (io_addr_[ 5] ? {muld[31:16]}                                             : 16'd0)|
+    (io_addr_[ 4] ? {spirx2}                                                  : 16'd0)|
+    (io_addr_[ 5] ? {15'd0, ~spirunning2}                                     : 16'd0)|
     (io_addr_[ 6] ? {spirx}                                                   : 16'd0)|
-    (io_addr_[ 7] ? {14'd0, mulready, ~spirunning}                            : 16'd0)|
+    (io_addr_[ 7] ? {15'd0,  ~spirunning}                                     : 16'd0)|
     (io_addr_[ 8] ? taskexecn[15:0]                                           : 16'd0)|
     (io_addr_[ 9] ? taskexecn[31:16]                                          : 16'd0)|
     (io_addr_[10] ? taskexecn[47:32]                                          : 16'd0)|
     (io_addr_[12] ? {8'd0, uart0_data}                                        : 16'd0)|
     (io_addr_[13] ? {11'd0, random, 1'b0, PIOS_01, uart0_valid, !uart0_busy}  : 16'd0)|
     (io_addr_[14] ? {taskexec}                                                : 16'd0)|
-    (io_addr_[15] ? {14'd0, io_slot_}                                         : 16'd0);
+    (io_addr_[15] ? {14'd0, io_slot_}                                         : 16'd0))&iomask;
 
   reg boot, s0, s1;
 
@@ -441,7 +478,7 @@ mult16x16 _mul (.clk(clk),
     endcase
 
     if (io_wr_ & io_addr_[1])
-      pmod_dir <= dout_;
+      pmod_dir <= masked_pmod_dir;
 
     if (io_wr_ & io_addr_[11])
       {boot, s1, s0} <= dout_[2:0];

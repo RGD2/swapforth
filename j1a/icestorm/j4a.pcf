@@ -48,4 +48,10 @@ set_io PA[11] P8
 set_io PA[12] R9
 set_io PA[13] T9
 set_io PA[14] T8
-set_io PA[15] T7 
+set_io PA[15] T7 # out nCS for CAN bus module
+
+set_io MISO2  T1 # in CAN bus module 
+set_io SCL2  R2 # out CAN bus module 
+set_io MOSI2  R3 # out CAN bus module 
+
+
