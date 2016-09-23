@@ -17,7 +17,7 @@ wire MOSI_ = dataout[15];
 
 reg SCL_;
 wire MISO_;
-wire ince = ~SCL_;
+wire ince = SCL_;
 
 SB_IO #(.PIN_TYPE(6'b0000_00)) _miso (
     .PACKAGE_PIN(MISO),
@@ -32,11 +32,11 @@ always @(posedge clk)
 begin
     if (running) begin
         sdelay <= SCL_ ? sdelay : {sdelay[14:0], 1'b0};
-        dataout <= SCL_ ? dataout : {dataout[14:0],1'b0};
-        datain <= SCL_ ? {datain[14:0], MISO_} : datain;
+        dataout <= ~SCL_ ? dataout : {dataout[14:0],1'b0};
+        datain <= ~SCL_ ? {datain[14:0], MISO_} : datain;
         SCL_ <= ~SCL_;
     end else begin
-        SCL_ <= 1'b1;
+        SCL_ <= 1'b0;
         datain <= datain;
         if (we) begin
             sdelay <= both ? 16'hffff :  16'hff00 ;
