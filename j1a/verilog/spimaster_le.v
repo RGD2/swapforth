@@ -14,15 +14,16 @@ assign running = sdelay[15];
 
 reg [15:0] dataout;
 wire MOSI_ = dataout[15];
-wire SCL_;
-wire SCL_FB;
 
+reg SCL_;
 wire MISO_;
+wire ince = ~SCL_;
 
 SB_IO #(.PIN_TYPE(6'b0000_00)) _miso (
     .PACKAGE_PIN(MISO),
+    .CLOCK_ENABLE(ince),
     .INPUT_CLK(clk),
-    .D_IN_1(MISO_));
+    .D_IN_0(MISO_));
 
 reg [15:0] datain;
 assign rx = {datain[7:0],datain[15:8]};
@@ -30,10 +31,10 @@ assign rx = {datain[7:0],datain[15:8]};
 always @(posedge clk)
 begin
     if (running) begin
-        sdelay <= ~SCL_FB ? {sdelay[14:0], 1'b0} : sdelay;
-        dataout <= ~SCL_FB ? {dataout[14:0], 1'b0} : dataout;
-        datain <= ~SCL_FB ? {datain[14:0], MISO_} : datain;
-        SCL_ <= ~SCL_FB;
+        sdelay <= SCL_ ? sdelay : {sdelay[14:0], 1'b0};
+        dataout <= SCL_ ? dataout : {dataout[14:0],1'b0};
+        datain <= SCL_ ? {datain[14:0], MISO_} : datain;
+        SCL_ <= ~SCL_;
     end else begin
         SCL_ <= 1'b1;
         datain <= datain;
@@ -51,8 +52,7 @@ end
 SB_IO #(.PIN_TYPE(6'b0101_01)) _scl (
     .PACKAGE_PIN(SCL),
     .OUTPUT_CLK(clk),
-    .D_OUT_0(SCL_),
-    .D_IN_0(SCL_FB));
+    .D_OUT_0(SCL_));
 
 SB_IO #(.PIN_TYPE(6'b0101_01)) _mosi (
     .PACKAGE_PIN(MOSI),
