@@ -45,6 +45,8 @@
 : >SPI $c0 io! begin done? until ; \ but you could miss a word if you don't poll for a word-write.
 : >SPI> >SPI $40 io@ 2* ; \ note, last bit is lost, but this doesn't matter for our purposes.
 
-: B>SPI2 $10 io! ;
-: >SPI2 $30 io! begin 1 pm $20 io@ 0<> until ;
-: >SPI2> >SPI2 $10 io@ 2* ; \ still loses last bit.
+: S2RC begin $20 io@ 0<> until ;
+: B>SPI2 S2RC $10 io! ;
+: B>SPI2> B>SPI2 S2RC $10 io@ ; \ nb. byte will be in high side
+: >SPI2 S2RC $30 io! ;
+: >SPI2> >SPI2 S2RC $10 io@ ; 
