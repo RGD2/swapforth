@@ -10,40 +10,48 @@ module spimaster_le (
     input wire MISO);
 
 reg [15:0] sdelay;
-assign running = sdelay[15];
+wire go = sdelay[15];
+reg capturing;
+always@(posedge clk) capturing <= go; 
+assign running = capturing | go;
 
 reg [15:0] dataout;
 wire MOSI_ = dataout[15];
 
 reg SCL_;
+reg slower;
+wire sample = SCL_& slower;
 wire MISO_;
-wire ince = SCL_;
 
 SB_IO #(.PIN_TYPE(6'b0000_00)) _miso (
     .PACKAGE_PIN(MISO),
-    .CLOCK_ENABLE(ince),
+    .CLOCK_ENABLE(1'b1),
     .INPUT_CLK(clk),
     .D_IN_0(MISO_));
 
 reg [15:0] datain;
+always @(posedge clk) begin
+	if (running) begin
+        	datain <= (sample) ? {datain[14:0], MISO_} : datain;
+	end else begin
+       		datain <= datain;
+	end
+end
+
 assign rx = {datain[7:0],datain[15:8]};
 
-always @(posedge clk)
-begin
-    if (running) begin
-        sdelay <= SCL_ ? sdelay : {sdelay[14:0], 1'b0};
-        dataout <= ~SCL_ ? dataout : {dataout[14:0],1'b0};
-        datain <= ~SCL_ ? {datain[14:0], MISO_} : datain;
-        SCL_ <= ~SCL_;
+always @(posedge clk) begin
+    if (go) begin
+        sdelay <= (sample) ? {sdelay[14:0], 1'b0} : sdelay;
+        dataout <= (sample) ? {dataout[14:0],1'b0} : dataout;
+        SCL_ <= (slower) ? ~SCL_ : SCL_ ;
+        slower <= ~slower;
     end else begin
         SCL_ <= 1'b0;
-        datain <= datain;
+        slower <= 1'b0;
         if (we) begin
-            sdelay <= both ? 16'hffff :  16'hff00 ;
-            dataout <= both ? {tx[7:0],tx[15:8]} :  {tx[7:0],8'b0};
-        end else begin
-            sdelay <= sdelay;
-            dataout <= dataout;
+            sdelay <= both ? 16'hFFFF : 16'hFF00;
+            dataout <= both ? {tx[7:0],tx[15:8]} :  {tx[7:0],8'h00};
         end
     end
 end
@@ -58,7 +66,5 @@ SB_IO #(.PIN_TYPE(6'b0101_01)) _mosi (
     .PACKAGE_PIN(MOSI),
     .OUTPUT_CLK(clk),
     .D_OUT_0(MOSI_));
-
-
 
 endmodule
