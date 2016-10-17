@@ -132,13 +132,17 @@ module top(input pclk,
 
            inout [15:0] PA,
 
-					 input MISO,
+	   input MISO,
            output MOSI,
            output SCL,
 
-					 input MISO2,
+	   input MISO2,
            output MOSI2,
            output SCL2,
+	   input sCS,
+	   input sSCL,
+	   input sMOSI,
+	   output [2:0] spower,
 
            input reset
 );
@@ -275,6 +279,7 @@ module top(input pclk,
       assign masked_pmod_dir[i] = (iomask[i])? dout_[i] : pmod_dir[i];
     end
   endgenerate
+  // This allows the direction pins to be set with an iomask'd write - very handy when sharing the port between multiple threads.
 
   // ######   SPI   ##########################################
 
@@ -302,6 +307,14 @@ spimaster_le _spi2 (	.clk(clk),
 				.SCL(SCL2),
 				.MISO(MISO2));
 
+wire [15:0] spislaverxd;
+spislaverx _spi3 ( .clk(clk), .rx(spislaverxd), .CS(sCS), .SCL(sSCL), .MOSI(sMOSI));
+
+outpin spowerpin0(.clk(clk), .we(1'b1), .pin(spower[0]), .wd(1'b1), .rd());
+outpin spowerpin1(.clk(clk), .we(1'b1), .pin(spower[1]), .wd(1'b1), .rd());
+outpin spowerpin2(.clk(clk), .we(1'b1), .pin(spower[2]), .wd(1'b1), .rd());
+// nasty hack for ice40hx8k breakout board: Not enough nearby Vio pins!
+// these are actually just powering nearby LVDS RX chips, so just need to be always on.
 
   // ######  HW MULTIPLIER    ################################
 /* disabled beacuse second SPI peripheral was needed instead.
@@ -314,7 +327,7 @@ mult16x16 _mul (.clk(clk),
 			    .din(dout_),
 			    .dout(muld),
 			    .ready(mulready));
-*/ 
+*/ // this multiplier could probably keep up with the main j1a core - but needs to read and write two stack items in a cpu cycle (both 16 bit operands giving a 32 bit result).
 
   // ######   UART   ##########################################
 
@@ -352,7 +365,7 @@ mult16x16 _mul (.clk(clk),
 	       .mask(iomask));
 
   wire [2:0] PIOS;
-  wire w8 = io_wr_ & io_addr_[3];
+  wire w8 = io_wr_ & io_addr_[13];
 
   outpin pio0(.clk(clk), .we(w8), .pin(PIOS_03), .wd(dout_[0]), .rd(PIOS[0]));
   outpin pio1(.clk(clk), .we(w8), .pin(PIOS_02), .wd(dout_[1]), .rd(PIOS[1]));
@@ -398,7 +411,7 @@ mult16x16 _mul (.clk(clk),
 
 0800  11      w     sb_warmboot
 1000  12    r/w     UART RX, UART TX
-2000  13    r       misc.in
+2000  13    r/w     misc.in and misc.out
 
 4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
                     - Write here to selectively reset one or more slots, controlled by setting the low nibble.
@@ -438,7 +451,7 @@ mult16x16 _mul (.clk(clk),
    ((io_addr_[ 0] ? {pmod_in}                                                 : 16'd0)|
     (io_addr_[ 1] ? {pmod_dir}                                                : 16'd0)|
     (io_addr_[ 2] ? {LEDS}                                                    : 16'd0)|
-    (io_addr_[ 3] ? {13'd0, PIOS}                                             : 16'd0)|
+    (io_addr_[ 3] ? {spislaverxd}                                             : 16'd0)|
     (io_addr_[ 4] ? {spirx2}                                                  : 16'd0)|
     (io_addr_[ 5] ? {15'd0, ~spirunning2}                                     : 16'd0)|
     (io_addr_[ 6] ? {spirx}                                                   : 16'd0)|
@@ -447,7 +460,7 @@ mult16x16 _mul (.clk(clk),
     (io_addr_[ 9] ? taskexecn[31:16]                                          : 16'd0)|
     (io_addr_[10] ? taskexecn[47:32]                                          : 16'd0)|
     (io_addr_[12] ? {8'd0, uart0_data}                                        : 16'd0)|
-    (io_addr_[13] ? {11'd0, random, 1'b0, PIOS_01, uart0_valid, !uart0_busy}  : 16'd0)|
+    (io_addr_[13] ? {10'd0, PIOS, PIOS_01, uart0_valid, !uart0_busy}          : 16'd0)|
     (io_addr_[14] ? {taskexec}                                                : 16'd0)|
     (io_addr_[15] ? {14'd0, io_slot_}                                         : 16'd0))&iomask;
 

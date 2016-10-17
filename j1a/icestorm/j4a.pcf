@@ -54,4 +54,10 @@ set_io MISO2  T1 # in CAN bus module
 set_io SCL2  R2 # out CAN bus module 
 set_io MOSI2  R3 # out CAN bus module 
 
+set_io sCS E16
+set_io sSCL H16 # Must be this pin - H16 can get a clock to the GB.
+set_io sMOSI K14
+set_io spower[0] C16
+set_io spower[1] F16
+set_io spower[2] J15
 
