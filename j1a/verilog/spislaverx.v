@@ -24,16 +24,16 @@ SB_IO #(.PIN_TYPE(6'b0000_00)) sb_io_mosi (
     .D_IN_0(MOSI_));
 reg [3:0] bitcount;
 reg [15:0] dcap;
-reg [16:0] datain; //17 bits for capturing longer CS packets.
+reg [17:0] datain; //18 bits for capturing longer CS packets.
 reg write, dCS_;
 always @(posedge SCL_) begin
 	write <= 1'b0;
 	dCS_ <= CS_;
-	if (CS_) datain <= {datain[15:0], MOSI_} ;
+	if (CS_) datain <= {datain[16:0], MOSI_} ;
 	if (dCS_) begin
 		if (bitcount == 4'hf) begin
 			write <= 1'b1;
-			dcap <= (CS_) ? datain[16:1] : datain[15:0]; // supports contiguous writes.
+			dcap <= (CS_) ? datain[17:2] : datain[16:1]; // supports contiguous writes.
 		end 
 		bitcount <= bitcount + 4'h1;
 	end else begin
