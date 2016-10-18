@@ -24,21 +24,23 @@ SB_IO #(.PIN_TYPE(6'b0000_00)) sb_io_mosi (
     .D_IN_0(MOSI_));
 reg [3:0] bitcount;
 reg [15:0] dcap;
-reg [17:0] datain; //18 bits for capturing longer CS packets.
+reg [15:0] datain;
 reg write, dCS_;
 always @(posedge SCL_) begin
 	write <= 1'b0;
-	dCS_ <= CS_;
-	if (CS_) datain <= {datain[16:0], MOSI_} ;
-	if (dCS_) begin
-		if (bitcount == 4'hf) begin
-			write <= 1'b1;
-			dcap <= (CS_) ? datain[17:2] : datain[16:1]; // supports contiguous writes.
-		end 
+	if (CS_) begin
+		datain <= {datain[14:0], MOSI_} ;
 		bitcount <= bitcount + 4'h1;
 	end else begin
 		bitcount <= 4'h0;
 	end
+	if (dCS_) begin
+		if (bitcount == 4'h0) begin
+			write <= 1'b1;
+			dcap <= datain;
+		end 
+	end
+	dCS_ <= CS_;
 end
 //fixme: read http://www.sunburst-design.com/papers/CummingsSNUG2002SJ_FIFO1.pdf
 // should have such a CDC fifo between clock domains just to keep data from glitching, and it
