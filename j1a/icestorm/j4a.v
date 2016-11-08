@@ -185,13 +185,13 @@ module top(input pclk,
   SB_PLL40_CORE #(.FEEDBACK_PATH("SIMPLE"),
                   .PLLOUT_SELECT("GENCLK"),
                   .DIVR(4'b0000),
-                  .DIVF(7'd3),
-                  .DIVQ(3'b000),
+                  .DIVF(7'd63),
+                  .DIVQ(3'b100),
                   .FILTER_RANGE(3'b001)
                  ) uut (
                          .REFERENCECLK(pclk),
-                         .PLLOUTCORE(clk),
-                         //.PLLOUTGLOBAL(clk),
+                         //.PLLOUTCORE(clk),
+                         .PLLOUTGLOBAL(clk),
                          .LOCK(resetq),
                          .RESETB(reset),
                          .BYPASS(1'b0)
