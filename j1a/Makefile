@@ -39,8 +39,8 @@ j1a:
 	make -C icestorm j1a
 
 linmodload:
-	echo "Make sure ice40hx8k breakout board or iceStick is plugged in"
-	sudo modprobe usbserial
+	$(info Ensure ice40hx8k breakout board or iceStick is plugged in.)
+	sudo modprobe ftdi_sio
 
 endif
 
