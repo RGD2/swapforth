@@ -29,6 +29,7 @@ set_io PIOS_03 R12
 
 # keep all pin connection documentation right here, as it's the only place it really counts.
 # don't doc elsewhere, so there's only one place to check how things are/ought to be wired.
+# the reason is that additional specialist IO modules need their pins connected here anyway.
 
 # following is specific to the j4a-maxrefdes24# based spraybench controller. dye025@csiro.au.
 

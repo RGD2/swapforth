@@ -308,7 +308,7 @@ spimaster_le _spi2 (	.clk(clk),
 				.MISO(MISO2));
 
 wire [15:0] spislaverxd;
-spislaverx _spi3 ( .clk(clk), .rx(spislaverxd), .CS(sCS), .SCL(sSCL), .MOSI(sMOSI));
+spislaverxpkt _spi3 ( .clk(clk), .pktwrd(spislaverxd), .setaddr(io_wr_ & io_addr_[3]), .paddr(dout_[5:0]), .CS(sCS), .SCL(sSCL), .MOSI(sMOSI));
 
 outpin spowerpin0(.clk(clk), .we(1'b1), .pin(spower[0]), .wd(1'b1), .rd());
 outpin spowerpin1(.clk(clk), .we(1'b1), .pin(spower[1]), .wd(1'b1), .rd());
@@ -389,12 +389,13 @@ mult16x16 _mul (.clk(clk),
 
   // ######   IO PORTS   ######################################
 
-/*
+/* io_addr_[ ]
       bit   mode    device
 0001  0     r/w     PMOD GPIO
 0002  1     r/w     PMOD direction
 0004  2     r/w     LEDS
-0008  3     r/w     misc.out
+0008  3       w     third SPI slave set packet address (to read from next)
+0008  3     r       third SPI slave read from preset packet address
 0010  4     r/w     second SPI byte write/word read (was multiplier)
 0030  4&5     w     second SPI 16 bit write: this one is little endian, the other big endian.
 0020  5     r       second SPI ready poll, same as below
