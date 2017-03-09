@@ -125,10 +125,10 @@ module top(input pclk,
            output TXD,        // UART TX
            input RXD,         // UART RX
 
-           output PIOS_00,    // flash SCK
-           input PIOS_01,     // flash MISO
-           output PIOS_02,    // flash MOSI
-           output PIOS_03,    // flash CS
+           output fSCK,    // flash SCK
+           input fMISO,     // flash MISO
+           output fMOSI,    // flash MOSI
+           output fCS,    // flash CS
 
            inout [15:0] PA,
 
@@ -179,7 +179,7 @@ module top(input pclk,
 
   */
   wire clk;
-  wire resetq;
+  wire uresetq,resetq;
  // assign resetq = reset; // now passed through PLL to keep design in reset until lock. note active low resets.
 
   SB_PLL40_CORE #(.FEEDBACK_PATH("SIMPLE"),
@@ -192,11 +192,12 @@ module top(input pclk,
                          .REFERENCECLK(pclk),
                          .PLLOUTCORE(clk),
                          //.PLLOUTGLOBAL(clk),
-                         .LOCK(resetq),
+                         .LOCK(uresetq),
                          .RESETB(reset),
                          .BYPASS(1'b0)
                         );
 
+  reg [1:0] syncreset; always @(posedge clk) {resetq, syncreset} <= {syncreset,uresetq};
 
   wire io_rd, io_wr;
   wire [15:0] mem_addr;
@@ -204,7 +205,9 @@ module top(input pclk,
   wire [15:0] dout;
   wire [15:0] io_din;
   wire [12:0] code_addr;
-  reg unlocked = 0;
+
+  reg unlocked = 0;// ###### RAM WRITE LOCK
+
 
   wire [1:0] io_slot;
   wire [15:0] return_top;
@@ -212,6 +215,8 @@ module top(input pclk,
 
 `include "../build/ram.v"
 
+  // always @(negedge resetq or posedge clk)  unlocked <= resetq ? unlocked | io_wr_ : 0;
+  always @(posedge clk)  unlocked <= resetq & (unlocked | io_wr_);
 
   j4 _j4(
     .clk(clk),
@@ -229,16 +234,11 @@ module top(input pclk,
     .kill_slot_rq(kill_slot_rq));
 
 
-
-  /*
-
-
   // ######   TICKS   #########################################
 
   reg [15:0] ticks;
   always @(posedge clk)
     ticks <= ticks + 16'd1;
-  */
 
   // ######   IO SIGNALS   ####################################
 
@@ -258,7 +258,7 @@ module top(input pclk,
       io_addr_ <= 0; // because we don't want to actuate things unless there really is a read or write.
   end
 
-  // ######   PMOD   ##########################################
+  // ######   GPIO (PMOD) ##########################################
 
   reg [15:0] pmod_dir;   // 1:output, 0:input
   wire [15:0] pmod_in;
@@ -279,9 +279,11 @@ module top(input pclk,
       assign masked_pmod_dir[i] = (iomask[i])? dout_[i] : pmod_dir[i];
     end
   endgenerate
+
+  always @(posedge clk) if (io_wr_ & io_addr_[1]) pmod_dir <= masked_pmod_dir;
   // This allows the direction pins to be set with an iomask'd write - very handy when sharing the port between multiple threads.
 
-  // ######   SPI   ##########################################
+  // ######   SPI ACCELERATORS   ##########################################
 
 wire [15:0] spirx;
 wire spirunning;
@@ -317,7 +319,7 @@ outpin spowerpin2(.clk(clk), .we(1'b1), .pin(spower[2]), .wd(1'b1), .rd());
 // these are actually just powering nearby LVDS RX chips, so just need to be always on.
 
   // ######  HW MULTIPLIER    ################################
-/* disabled beacuse second SPI peripheral was needed instead.
+/* currently disabled - experimental, and takes quite a bit of resources.
 wire [31:0] muld;
 wire mulready;
 wire [1:0] absel = {2{io_wr_}} & io_addr_[5:4];
@@ -328,6 +330,7 @@ mult16x16 _mul (.clk(clk),
 			    .dout(muld),
 			    .ready(mulready));
 */ // this multiplier could probably keep up with the main j1a core - but needs to read and write two stack items in a cpu cycle (both 16 bit operands giving a 32 bit result).
+// it would be more useful integrated into the actual j4a core, with retimed pipelining inserted.
 
   // ######   UART   ##########################################
 
@@ -354,8 +357,6 @@ mult16x16 _mul (.clk(clk),
 
    // ######   LEDS   ##########################################
 
-
-
   ioport _leds (.clk(clk),
                .pins(D),
                .we(io_wr_ & io_addr_[2]),
@@ -365,119 +366,25 @@ mult16x16 _mul (.clk(clk),
 	       .mask(iomask));
 
   wire [2:0] PIOS;
-  wire w8 = io_wr_ & io_addr_[13];
+  wire writeflags = io_wr_ & io_addr_[13];
 
-  outpin pio0(.clk(clk), .we(w8), .pin(PIOS_03), .wd(dout_[0]), .rd(PIOS[0]));
-  outpin pio1(.clk(clk), .we(w8), .pin(PIOS_02), .wd(dout_[1]), .rd(PIOS[1]));
-  outpin pio2(.clk(clk), .we(w8), .pin(PIOS_00), .wd(dout_[2]), .rd(PIOS[2]));
-
-  // ######   RING OSCILLATOR   ###############################
-
-  // wire [1:0] buffers_in, buffers_out;
-  // assign buffers_in = {buffers_out[0:0], ~buffers_out[1]};
-  // SB_LUT4 #(
-  //         .LUT_INIT(16'd2)
-  // ) buffers [1:0] (
-  //         .O(buffers_out),
-  //         .I0(buffers_in),
-  //         .I1(1'b0),
-  //         .I2(1'b0),
-  //         .I3(1'b0)
-  // );
-  // wire random = ~buffers_out[1];
-  wire random = 1'b0; // random disabled: async loops play poorly with icetime
-
-  // ######   IO PORTS   ######################################
-
-/* io_addr_[ ]
-      bit   mode    device
-0001  0     r/w     PMOD GPIO
-0002  1     r/w     PMOD direction
-0004  2     r/w     LEDS
-0008  3       w     third SPI slave set packet address (to read from next)
-0008  3     r       third SPI slave read from preset packet address
-0010  4     r/w     second SPI byte write/word read (was multiplier)
-0030  4&5     w     second SPI 16 bit write: this one is little endian, the other big endian.
-0020  5     r       second SPI ready poll, same as below
-
-0040  6       w     SPI 8 bit write (low byte only)
-00c0  6&7     w     SPI 16 bit write. Handle CS pins yourself - use GPIO
-0040  6     r       SPI word read (after a word write)
-0080  7     r       SPI ready (poll with `begin $80 io@ until ` to wait for completion)
-
-0100  8     r/w     slot 1 task XT
-0200  9     r/w     slot 2 task XT
-0400  10    r/w     slot 3 task XT
-                    - If bit 0 in an XT is set with ` 1 or `, then the task will auto-clear to zero after being read and run once.
-
-0800  11      w     sb_warmboot
-1000  12    r/w     UART RX, UART TX
-2000  13    r/w     misc.in and misc.out
-
-4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
-                    - Write here to selectively reset one or more slots, controlled by setting the low nibble.
-
-8000  15    r       slot ID (depends only on which slot accesses it) - used by tasksel in nuc.fs. Can be used in parallel tasks to differentiate slots
-8000  15      w     Mask set
-                    - very next io@ or io! by *the same* core will use this as a mask
-                    - After that next access, will reset to all true 
-                    - Cleared bits in mask on next io read from anything will read as zero
-                    - Only set bits in mask on a write to ioport or ioport direction will be *changed*
-                    - This makes it easy to only set or read particular bits in a port from multiple thread.
-*/
-
+  outpin pio2(.clk(clk), .we(writeflags), .pin(fSCK), .wd(dout_[14]), .rd(PIOS[2]));
+  outpin pio1(.clk(clk), .we(writeflags), .pin(fMOSI), .wd(dout_[13]), .rd(PIOS[1]));
+  outpin pio0(.clk(clk), .we(writeflags), .pin(fCS), .wd(dout_[12]), .rd(PIOS[0]));
+ 
+// ###### J4a coherent I/O Mask preset mechanism
   reg [15:0] iomask_preset[3:0];
+  always@(posedge clk) if(io_wr_ | io_rd_) iomask_preset[io_slot_] <= (io_addr_[15] & io_wr_) ? dout_ : 16'hFFFF;
   wire [15:0] iomask;
   assign iomask = iomask_preset[io_slot_];
 
-  always@(posedge clk) begin
-	if(io_wr_ | io_rd_)
-		iomask_preset[io_slot_] <= (io_addr_[15] & io_wr_) ? dout_ : 16'hFFFF;
-  end
-
-  reg [15:0] taskexec;
+// ###### J4a task assignment system.
+// necessary to allow more than one actual thread to be run.
   reg [47:0] taskexecn;
 
-  always @* begin
-    case (io_slot_)
-      2'b00: taskexec = 16'b0;// all tasks start with taskexec zeroed, and all tasks will try to run all code from zero.
-      2'b01: taskexec = {taskexecn[15:1], 1'b0}; // note *valid* XT's must be even, we set that bit to make tasks run once only.
-      2'b10: taskexec = {taskexecn[31:17], 1'b0};
-      2'b11: taskexec = {taskexecn[47:33], 1'b0};
-    endcase
-  end
-
-
-  assign io_din =
-   ((io_addr_[ 0] ? {pmod_in}                                                 : 16'd0)|
-    (io_addr_[ 1] ? {pmod_dir}                                                : 16'd0)|
-    (io_addr_[ 2] ? {LEDS}                                                    : 16'd0)|
-    (io_addr_[ 3] ? {spislaverxd}                                             : 16'd0)|
-    (io_addr_[ 4] ? {spirx2}                                                  : 16'd0)|
-    (io_addr_[ 5] ? {15'd0, ~spirunning2}                                     : 16'd0)|
-    (io_addr_[ 6] ? {spirx}                                                   : 16'd0)|
-    (io_addr_[ 7] ? {15'd0,  ~spirunning}                                     : 16'd0)|
-    (io_addr_[ 8] ? taskexecn[15:0]                                           : 16'd0)|
-    (io_addr_[ 9] ? taskexecn[31:16]                                          : 16'd0)|
-    (io_addr_[10] ? taskexecn[47:32]                                          : 16'd0)|
-    (io_addr_[12] ? {8'd0, uart0_data}                                        : 16'd0)|
-    (io_addr_[13] ? {10'd0, PIOS, PIOS_01, uart0_valid, !uart0_busy}          : 16'd0)|
-    (io_addr_[14] ? {taskexec}                                                : 16'd0)|
-    (io_addr_[15] ? {14'd0, io_slot_}                                         : 16'd0))&iomask;
-
-  reg boot, s0, s1;
-
-  SB_WARMBOOT _sb_warmboot (
-    .BOOT(boot),
-    .S0(s0),
-    .S1(s1)
-    );
-
-
   always@( posedge clk) begin
-
     if (!resetq)
-      taskexecn <= 0; // this is so CTRL-C will stop all slots - otherwise they'll just restart themselves after a warm reset.
+      taskexecn <= 48'b0; // this is so CTRL-C will stop all slots - otherwise they'll just restart themselves after a warm reset.
     else if (io_wr_ ) begin // any slot can change any other's schedule, except none can mess with slot 0
       if (io_addr_[8]) taskexecn[15:0] <= dout_;
       if (io_addr_[9]) taskexecn[31:16] <= dout_;
@@ -486,23 +393,133 @@ mult16x16 _mul (.clk(clk),
     end  // it is even possible to assign the same task to multiple slots, although this isn't recommended.
     else
 	case ({io_rd_ , io_addr_[14], io_slot_}) // if the assigned XT has bit 0 set ( 1 or ) then it will be cleared after being read once.
-        4'b1101:  taskexecn[15:0] <= taskexecn[0] ? 16'b0 : taskexecn[15:0];
-        4'b1110:  taskexecn[31:16] <= taskexecn[16] ? 16'b0 : taskexecn[31:16];
-        4'b1111:  taskexecn[47:32] <= taskexecn[32] ? 16'b0 : taskexecn[47:32];
+	   4'b1101:  taskexecn[15:0] <= taskexecn[0] ? 16'b0 : taskexecn[15:0];
+	   4'b1110:  taskexecn[31:16] <= taskexecn[16] ? 16'b0 : taskexecn[31:16];
+	   4'b1111:  taskexecn[47:32] <= taskexecn[32] ? 16'b0 : taskexecn[47:32];
+        endcase // we use the task xt lsb to determine whether to run only once.
+  end
+ 
+  reg [15:0] taskexec;
+  always @* begin
+    case (io_slot_)
+      2'b00: taskexec = 16'b0;// 0 is safe -- will cause all non-zero ID cores to spinlock asking for a nonzero task
+      2'b01: taskexec = {taskexecn[15:1], 1'b0}; // note *valid* XT's must be even, we use the bit above.
+      2'b10: taskexec = {taskexecn[31:17], 1'b0};
+      2'b11: taskexec = {taskexecn[47:33], 1'b0};
     endcase
-
-    if (io_wr_ & io_addr_[1])
-      pmod_dir <= masked_pmod_dir;
-
-    if (io_wr_ & io_addr_[11])
-      {boot, s1, s0} <= dout_[2:0];
-
   end
 
-  always @(negedge resetq or posedge clk)
-    if (!resetq)
-      unlocked <= 0; // ram write clock enable
-    else
-      unlocked <= unlocked | io_wr_;
+  // ###### SAMPLE RAM : 512x16 bit data storage with independant autoincrementing pointers ####
 
+  reg [8:0] sreadaddr, sreadaddr_;
+  reg [8:0] swriteaddr, swriteaddr_;
+  wire [8:0] sampleAddr = dout_[8:0]; // used to preset (or clear) the pointers.
+  wire setWriteAddr = writeflags & dout_[11]; // $800 $2000 io!
+  wire setReadAddr = writeflags & dout_[10]; // $400 $2000 io!
+  // reset both at once with $c00 $2000 io!
+  // note, bits 15:12 and 9  of dout are used by other things on $2000 io!
+  // specifically, $8000 $2000 io! will reboot the FPGA!
+  wire haveRead = io_rd_ & io_addr_[11];
+  wire haveWrite = io_wr_ & io_addr_[11];
+  wire [15:0] readsample;
+  // reg [15:0] writesample;
+  always@(posedge clk) begin
+    sreadaddr <= setReadAddr ? sampleAddr : (haveRead ? sreadaddr+1 : sreadaddr);
+    swriteaddr <= setWriteAddr ? sampleAddr : (haveWrite ? swriteaddr+1 : swriteaddr);
+   // writesample <= haveWrite ? dout_ : writesample;
+    {swriteaddr_, sreadaddr_} <= {swriteaddr,sreadaddr}; // otherwise it's the incremented addresses
+    // that get used. 
+  end
+  // actual read/write will occur a clk later - have to buffer both read and write data!
+  // see the lattice technology docs for the EBR timing info.
+  SB_RAM40_4K #(.READ_MODE(0),.WRITE_MODE(0)) sampleram (
+.RDATA(readsample),
+.RADDR(sreadaddr_),
+.WADDR(swriteaddr_),
+.MASK(16'b0),
+.WDATA(dout_),
+.RCLKE(1'b1),
+.RCLK(clk),
+.RE(1'b1),
+.WCLKE(1'b1),
+.WCLK(clk),
+.WE(haveWrite) // needs to be a clk earlier than the actual data+address. 
+);
+
+    // ######   IO SUBSYSTEM ADDRESSING DOCUMENTATION  ######################################
+
+/* io_addr_[ ]
+      bit   mode    device
+0001  0     r/w     PMOD GPIO
+0002  1     r/w     PMOD direction
+0004  2     r/w     LEDS - also good for use as semaphores with the iomask to coherently set/flip individual bits.
+                \ only the top three can be written to with iomask
+                 \ everything under here will ignore the iomask when writing.
+                   \ SPI slave pkt rx: runs at 100 MHz, receives up to 128x16bit word packets, quadbuffered.
+0008  3       w     third SPI slave set packet address (to read from next)
+0008  3     r       third SPI slave read from preset packet address
+                   \ 'second' SPI Master accelerator: Use GPIO to control your client chips' nCS lines.
+0010  4     r/w     second SPI byte write/word read. Write to send data, then read when ready to receive the result.
+0030  4&5     w     second SPI 16 bit write: Little Endian byte order auto byteswapped for your convenience.
+0020  5     r       second SPI ready poll, same as below
+
+0040  6       w     SPI 8 bit write (low byte only)
+00c0  6&7     w     SPI 16 bit write. Handle CS pins yourself - use GPIO
+0040  6     r       SPI word read (after a word write). Big Endian byte order.
+0080  7     r       SPI ready (poll with `begin $80 io@ until ` to wait for completion)
+
+0100  8     r/w     slot 1 task XT
+0200  9     r/w     slot 2 task XT
+0400  10    r/w     slot 3 task XT
+                    - If bit 0 in an XT is set with ` 1 or `, then the task will auto-clear to zero after being read and run once.
+                   \ Sample RAM. Uses a 512x16 BRAM. Pointers can both be cleared with %11000 $2000 io@
+0800  11    r       - read data from sample RAM. Autoincrements read addr pointer.
+0800  11      w     - write data to sample RAM, Autoincements write addr pointer.
+                    - was sb_warmboot, has since been moved to 13.
+1000  12    r/w     UART RX, UART TX
+2000  13    r       misc.in and misc.out inherited from j1a, also sundry status bits.
+                    - msb is the 'not core0' slotID. moved from $8000 io@ because only tasksel in nuc.fs was using it.
+                       - used by tasksel in nuc.fs, so 'exit' runs on core0 only
+              w     - also connected to warmboot module and sample ram address pointer resets.
+                    - { Boot,  fSCK, fMOSI, fCS,  SetWriteAddr, SetReadAddr, unused, SampleAddr[8]. sampleAddr[7:0] }
+4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
+                    - Write here to selectively reset one or more slots, controlled by setting the low nibble.
+
+8000  15    r       wall clock (counts clock ticks, wraps)
+8000  15      w     Mask set
+                    - very next io@ or io! by *the same* core will use this as a mask
+                    - After that next access, will reset to all true 
+                    - Cleared bits in mask on next io read from anything will read as zero
+                    - Only set bits in mask on a write to ioport or ioport direction will be *changed*
+                    - This makes it easy to only set or read particular bits in a port from multiple thread.
+*/
+
+// ###### ALL IO READ ADDRESS DECODING ######
+   wire [15:0] statusbits = { (|io_slot_), 9'd0, PIOS, fMISO, uart0_valid, !uart0_busy};
+   assign io_din =
+   ((io_addr_[ 0] ? {pmod_in}             : 16'd0)|
+    (io_addr_[ 1] ? {pmod_dir}            : 16'd0)|
+    (io_addr_[ 2] ? {LEDS}                : 16'd0)|
+    (io_addr_[ 3] ? {spislaverxd}         : 16'd0)|
+    (io_addr_[ 4] ? {spirx2}              : 16'd0)|
+    (io_addr_[ 5] ? {15'd0, ~spirunning2} : 16'd0)|
+    (io_addr_[ 6] ? {spirx}               : 16'd0)|
+    (io_addr_[ 7] ? {15'd0,  ~spirunning} : 16'd0)|
+    (io_addr_[ 8] ? taskexecn[15:0]       : 16'd0)|
+    (io_addr_[ 9] ? taskexecn[31:16]      : 16'd0)|
+    (io_addr_[10] ? taskexecn[47:32]      : 16'd0)|
+    (io_addr_[11] ? readsample            : 16'd0)|
+    (io_addr_[12] ? {8'd0, uart0_data}    : 16'd0)|
+    (io_addr_[13] ? statusbits            : 16'd0)|
+    (io_addr_[14] ? {taskexec}            : 16'd0)|
+    (io_addr_[15] ? ticks                 : 16'd0))&iomask;
+
+// ###### WARMBOOT MODULE
+  reg boot, s0, s1;
+  always@(posedge clk) if (writeflags) {boot, s1, s0} <= {dout_[15], dout_[1:0]};
+  SB_WARMBOOT _sb_warmboot (
+    .BOOT(boot),
+    .S0(s0),
+    .S1(s1)
+    );
 endmodule // top

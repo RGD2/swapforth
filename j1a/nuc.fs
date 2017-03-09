@@ -1154,9 +1154,8 @@ header quit
         cr
     again
 
-header tasksel
 : tasksel
-    h# 8000 io@ if 
+    h# 8000 uart-stat if 
         begin 
             h# 4000 io@ dup if 
                 execute 

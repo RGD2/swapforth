@@ -22,10 +22,10 @@ set_io TXD B12
 set_io RXD B10
 set_io pclk J3
 set_io reset A16
-set_io PIOS_00 R11
-set_io PIOS_01 P11
-set_io PIOS_02 P12
-set_io PIOS_03 R12
+set_io fSCK R11
+set_io fMISO P11
+set_io fMOSI P12
+set_io fCS R12
 
 # keep all pin connection documentation right here, as it's the only place it really counts.
 # don't doc elsewhere, so there's only one place to check how things are/ought to be wired.
@@ -42,6 +42,7 @@ set_io PA[0] R16 # in ERR maxrefdes#24 J1 Pin 7
 set_io PA[1] T16 # out nCS1 maxrefdes#24 J1 Pin 1
 set_io PA[2] T15 # out nCS2 maxrefdes#24 J1 Pin 8
 set_io PA[3] T14 # out purge mosfet (on is purge-disabled)
+
 set_io PA[4] T13 # out valve enable control (via optoisolator) 
 set_io PA[5] P13 # in valve ok (via optoisolator, low is ok, hi is fault)
 set_io PA[6] M11 # out HPSO air solenoid control
@@ -55,20 +56,39 @@ set_io PA[8]  R10
 set_io PA[9]  T10
 set_io PA[10] P9
 set_io PA[11] P8
+
 set_io PA[12] R9
 set_io PA[13] T9
 set_io PA[14] T8
 set_io PA[15] T7 # out nCS for CAN bus module
+# This pattern of outs vs ins makes the pdir register $80de, 
+# with an initial 'off' value of $8096 so as to not assert the nCS* lines, 
+# and so as to enable the high speed vent valve and main servo valve.
 
 # <http://futurelec.com/Mini_CAN_Board.shtml>
 set_io MISO2  T1 # in CAN bus module 
 set_io SCL2  R2 # out CAN bus module 
 set_io MOSI2  R3 # out CAN bus module 
 
-set_io sCS E16
+# this next bit is for the "Slave SPI Packet Receiver" module. 
+set_io sCS E16 # 100 MHz works ok, theoretically 250 MHz might work too.
 set_io sSCL H16 # Must be this pin - H16 can get a clock to the GB.
 set_io sMOSI K14
 set_io spower[0] C16
 set_io spower[1] F16
 set_io spower[2] J15
+# these just abuse some outputs for (low) power 3.3V supplies,
+# to run the DS90LT012A receivers off of, without long power supply connections.
+# each of the three slave SPI lines are connect with 30AWG wire wrapping wire, 
+# in twisted pair or twisted triple, from a different vendor's FPGA.
+# at least one earth connection is important - the sum of currents from both each signal
+# and its complement sum to a constant positive value, 
+# which needs a DC return path along with the current from the other two pairs.
+# Wired this way, an easy 100mm or so of interconnect between 0.1" headers runs happily at 100MHz, 
+# without even taking the care to twist the 30AWG pair/triples into 150 Ohm impedance exactly.
+# the actual wiring from the DS90LT012A soic breakout boards to the ice40hx8k breakout is to a
+# dual-row male-male 0.1" header inserted into the socket that comes soldered to J2.
+# The little soic breakouts are right against the male 0.1" plug, and have 0.1" headers soldered on to accept the WW.
 
+# all the other connections are on J4, and a male-male 0.1" dual row pin header was soldered on, 
+# but then a 0.1" dual row female plugged on, to accept the wire-wrap connections to everything else.
