@@ -91,7 +91,7 @@ $06 dup mp! ; \ must access all conditioner chips in the one SPI access.
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 620 , \ retune this if you play with runDAC, 2>DAC or >CONS>
+create sdelay 606 , \ retune this if you play with runDAC, 2>DAC or >CONS>
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
