@@ -183,8 +183,7 @@ variable ip \ inlet pressure, 10922 null, 993 counts/bar.
 variable op \ outlet pressure, 10029 null, 99 counts/bar.
 variable hp \ high pressure seal oil pressure, 9929 null, 29 counts/bar.
 variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
-: getch ( chaddr -- chdata ) 8 io! 8 io@ ;
-\ updateps / getch needs to run on just one core - probably should be done just before using op value.
+\ updateps / sp@ needs to run on just one core - probably should be done just before using op value.
 : inlet ip @ 10922 - 328 / 33 * ; \ theadsafe
 : hpso hp @ ;
 : lpso lp @ ;
@@ -197,7 +196,7 @@ create hl 29800 , \ min HPSO, about 690 bar
 create ll 14894 , \ min LPSO, about 25 bar, one more than the max that inlet pump ought to be able to reach. 
 create oh 20852 , \ outlet high max, 110 bar
 create ol 18166 , \ outlet low min, 90 bar
-: co 0 getch ip ! 1 getch hp ! 2 getch lp ! 3 getch dup op ! dup ol @ < if catch then oh @ > vent then ;
+: co 0 sp@ ip ! 1 sp@ hp ! 2 sp@ lp ! 3 sp@ dup op ! dup ol @ < if catch then oh @ > if vent then ;
 \ let's try just bang-bang control first. 
 \ the signal is on until oh is exceeded, then off until outlet is below ol.
 \ it runs continually, and incidentally also updates ip/op/hp/lp for firecontrol thread.
@@ -246,7 +245,7 @@ wc rup or vbot or d0! ! \ tell channel 0 conditioner chip to activate 4..20mA ou
 ['] runDAC x1! \ start maxrefdes24 driver running.
 50 ms
 ERR? if 0ERR! then \ clear error conditions.
-\ ['] co x3! \ control vent, under testing.
+['] co x3! \ control vent, under testing.
 ['] fc x2!
 ;
 

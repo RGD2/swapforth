@@ -67,7 +67,7 @@
 : >SPI2 S2RC $30 io! ;
 : >SPI2> >SPI2 S2RC $10 io@ ; 
 
-: s@ ( pktoffset -- pktdata ) 8 io! 8 io@ ; \ reads from slave SPI depacketizer. pktoffset is (0-63)
+: sp@ ( pktoffset -- pktdata ) 8 io! 8 io@ ; \ reads from slave SPI depacketizer. pktoffset is (0-63)
 
 : sr@ $800 io@ ;
 : sr! $800 io! ;
