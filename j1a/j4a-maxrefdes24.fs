@@ -7,7 +7,8 @@
 \ they have been changed to:
 create pl 1 ,
 create ptv $A774 dup ,
-\ ptl wasn't used, and pv has been moved into the sample ram.
+variable ptl \ created anyway, because it's expected by the sample file
+ \ ptl wasn't used, and pv has been moved into the sample ram.
   sr!0 sr! \ preloads it with the value we know doesn't hurt anything.
 \ these settings mean that if not loaded, it won't fire.
 \ but the servo valve will be idle.
