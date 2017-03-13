@@ -61,7 +61,7 @@ set_io PA[12] R9
 set_io PA[13] T9
 set_io PA[14] T8
 set_io PA[15] T7 # out nCS for CAN bus module
-# This pattern of outs vs ins makes the pdir register $80de, 
+# This pattern of outs vs ins makes the pdir register $d0de, 
 # with an initial 'off' value of $8096 so as to not assert the nCS* lines, 
 # and so as to enable the high speed vent valve and main servo valve.
 
