@@ -197,38 +197,45 @@ create hl 29800 , \ min HPSO, about 690 bar
 create ll 14894 , \ min LPSO, about 25 bar, one more than the max that inlet pump ought to be able to reach. 
 create oh 20852 , \ outlet high max, 110 bar
 create ol 18166 , \ outlet low min, 90 bar
+create oo 31774 , \ outlet Overload, 220 bar (~230 bar is max. visible)
 : co 0 sp@ ip ! 1 sp@ hp ! 2 sp@ lp ! 3 sp@ dup op ! dup ol @ < if catch then oh @ > if vent then ;
 \ bang/bang control works fairly well.
 \ the signal is on until oh is exceeded, then off until outlet is below ol.
 \ it runs continually, and incidentally also updates ip/op/hp/lp for firecontrol thread.
 
 : openfire 1000 firedelay ! ;
-: ceasefire 0 firedelay ! ;
-: i? inlet dup ih @ < swap il @ > and  \ nonzero (true) means ok to fire (inlet pressure within range)
+: rapidfire 500 firedelay ! ;
+: ceasefire 0 firedelay ! hpsopoff ;
+: i? 
+inlet dup ih @ < swap il @ > and  \ nonzero (true) means ok to fire (inlet pressure within range)
     hpso hl @ > and  \ hpso > hpso low level
     lpso ll @ > and
+    outlet dup ol @ > swap oo @ < and and \ don't fire if outlet is getting too high == outlet manifold blockage.
 ;
 
 : shoot i? if 1 fm ! then ;
 
 : fc \ firecontrol 
 inlet ih @ > if ceasefire purge then  \ overpressure means stop, cease and purge.
+					\ disabled because max inlet reading is about 24, and we go higher currently.
 firedelay @
     dup
-        332 - 0< if
+        332 - 0< if \ won't go faster than about 180 RPM, also used to park.
     drop
     else
-    i? if 1 fm ! 
-    ms 
+    i? if hpsopon 1 fm ! 
+    ms \ waits here between shot starts
+hpsopoff \ turn off hpso pump -- but will be back here with it on if ready to fire again immediately.
+\ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
-    drop
+    drop \ hammers at i? until it's true, then fires the next waiting shot.
 then
 then ;
 
 \ ==== initialisation here (ini) at end of file.
 : ini
 \ /------------------- nCS for CAN BUS module
-\ |       /----------- vent solenoid, off==vent
+\ |       /----------- outlet manifold vent solenoid, off==vent
 \ |       |/---------- HPSO pump
 \ |       ||/--------- input, valve error
 \ |       |||/-------- servo valve enable
