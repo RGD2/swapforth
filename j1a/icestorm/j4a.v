@@ -455,9 +455,9 @@ mult16x16 _mul (.clk(clk),
 0004  2     r/w     LEDS - also good for use as semaphores with the iomask to coherently set/flip individual bits.
                 \ only the top three can be written to with iomask
                  \ everything under here will ignore the iomask when writing.
-                   \ SPI slave pkt rx: runs at 100 MHz, receives up to 128x16bit word packets, quadbuffered.
-0008  3       w     third SPI slave set packet address (to read from next)
-0008  3     r       third SPI slave read from preset packet address
+                   \ SPI slave pkt rx: runs at 100 MHz, receives up to 64x16bit word packets, quadbuffered.
+0008  3       w     third SPI slave set word address in packet (to read from next, 0 to 63)
+0008  3     r       third SPI slave read from preset packet, word address, autoincrements address
                    \ 'second' SPI Master accelerator: Use GPIO to control your client chips' nCS lines.
 0010  4     r/w     second SPI byte write/word read. Write to send data, then read when ready to receive the result.
 0030  4&5     w     second SPI 16 bit write: Little Endian byte order auto byteswapped for your convenience.
@@ -472,7 +472,7 @@ mult16x16 _mul (.clk(clk),
 0200  9     r/w     slot 2 task XT
 0400  10    r/w     slot 3 task XT
                     - If bit 0 in an XT is set with ` 1 or `, then the task will auto-clear to zero after being read and run once.
-                   \ Sample RAM. Uses a 512x16 BRAM. Pointers can both be cleared with %11000 $2000 io@
+                   \ Sample RAM. Uses a 256x16 BRAM. Pointers can both be cleared with %11000 $2000 io@
 0800  11    r       - read data from sample RAM. Autoincrements read addr pointer.
 0800  11      w     - write data to sample RAM, Autoincements write addr pointer.
                     - was sb_warmboot, has since been moved to 13.
