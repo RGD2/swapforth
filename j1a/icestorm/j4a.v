@@ -409,11 +409,11 @@ mult16x16 _mul (.clk(clk),
     endcase
   end
 
-  // ###### SAMPLE RAM : 512x16 bit data storage with independant autoincrementing pointers ####
+  // ###### SAMPLE RAM : 256x16 bit data storage with independant autoincrementing pointers ####
 
-  reg [8:0] sreadaddr, sreadaddr_;
-  reg [8:0] swriteaddr, swriteaddr_;
-  wire [8:0] sampleAddr = dout_[8:0]; // used to preset (or clear) the pointers.
+  reg [7:0] sreadaddr, sreadaddr_;
+  reg [7:0] swriteaddr, swriteaddr_;
+  wire [7:0] sampleAddr = dout_[7:0]; // used to preset (or clear) the pointers.
   wire setWriteAddr = writeflags & dout_[11]; // $800 $2000 io!
   wire setReadAddr = writeflags & dout_[10]; // $400 $2000 io!
   // reset both at once with $c00 $2000 io!
@@ -481,7 +481,7 @@ mult16x16 _mul (.clk(clk),
                     - msb is the 'not core0' slotID. moved from $8000 io@ because only tasksel in nuc.fs was using it.
                        - used by tasksel in nuc.fs, so 'exit' runs on core0 only
               w     - also connected to warmboot module and sample ram address pointer resets.
-                    - { Boot,  fSCK, fMOSI, fCS,  SetWriteAddr, SetReadAddr, unused, SampleAddr[8]. sampleAddr[7:0] }
+                    - { Boot,  fSCK, fMOSI, fCS,  SetWriteAddr, SetReadAddr, unused, unused,  sampleAddr[7:0] }
 4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
                     - Write here to selectively reset one or more slots, controlled by setting the low nibble.
 
