@@ -256,4 +256,4 @@ ERR? if 0ERR! then \ clear error conditions.
 ['] co x3! \ control vent, under testing.
 ['] fc x2!
 ;
-: sr!v sr! sr@ .x cr ;
+: sr!v sr! sr@ ."    " .x cr cr ;
