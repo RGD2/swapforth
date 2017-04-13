@@ -78,20 +78,9 @@ variable D2@
 variable D3@
 create reqCom -1 , \ set to request CONS
 
-: >CONS> $06 $04 mp!
-\ will update Dn@ only on reads, and only to set bits.
-D0! @ dup rE and if >SPI> D0@ @ or D0@ ! else >SPI 2 us then
-D1! @ dup rE and if >SPI> D1@ @ or D1@ ! else >SPI 2 us then
-D2! @ dup rE and if >SPI> D2@ @ or D2@ ! else >SPI 2 us then
-D3! @ dup rE and if >SPI> D3@ @ or D3@ ! else >SPI 2 us then
-$06 dup mp! ; \ must access all conditioner chips in the one SPI access.
-\ so, can't skip any in case a later one needs an access.
-\ ok to send zeros though, as those are no-ops.
-\ Dx@ need to be manually cleared by the receiving code.
-
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 606 , \ retune this if you play with runDAC, 2>DAC or >CONS>
+create sdelay 606 , \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
@@ -127,7 +116,19 @@ then
 C1 @ Cs1 2>DAC
 C2 @ Cs2 2>DAC
 C3 @ Cs3 2>DAC
-reqCom @ if >CONS> 0 reqCom ! else 8 us then
+reqCom @ if 
+$06 $04 mp!
+\ must access all conditioner chips in the one SPI access.
+\ so, can't skip any in case a later one needs an access.
+\ ok to send zeros though, as those are no-ops.
+\ Dx@ need to be manually cleared by the receiving code.
+\ will update Dn@ only on reads, and only to set bits.
+D0! @ dup rE and if >SPI> D0@ @ or D0@ ! else >SPI 2 us then
+D1! @ dup rE and if >SPI> D1@ @ or D1@ ! else >SPI 2 us then
+D2! @ dup rE and if >SPI> D2@ @ or D2@ ! else >SPI 2 us then
+D3! @ dup rE and if >SPI> D3@ @ or D3@ ! else >SPI 2 us then
+$06 dup mp! 
+0 reqCom ! else 8 us then
 
 ERR? if 4 io@ $0080 or 4 io! else 4 io@ $ff7f and 4 io! then
 sdelay @ us
@@ -190,44 +191,51 @@ variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 : outlet op @ ;
 
 create ih 2500 , \ 25.00 bar def max
-create il 1600 , \ bar def min - allows accumulator to fill, may need tuning.
+create il 1800 , \ 18 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
 create hl 29800 , \ min HPSO, about 690 bar
 create ll 14894 , \ min LPSO, about 25 bar, one more than the max that inlet pump ought to be able to reach. 
 create oh 20852 , \ outlet high max, 110 bar
 create ol 18166 , \ outlet low min, 90 bar
+create oo 31774 , \ outlet Overload, 220 bar (~230 bar is max. visible)
 : co 0 sp@ ip ! 1 sp@ hp ! 2 sp@ lp ! 3 sp@ dup op ! dup ol @ < if catch then oh @ > if vent then ;
-\ let's try just bang-bang control first. 
+\ bang/bang control works fairly well.
 \ the signal is on until oh is exceeded, then off until outlet is below ol.
 \ it runs continually, and incidentally also updates ip/op/hp/lp for firecontrol thread.
 
-: openfire 333 firedelay ! ;
-: ceasefire 0 firedelay ! ;
-: i? inlet dup ih @ < swap il @ > and  \ nonzero (true) means ok to fire (inlet pressure within range)
+: openfire 1000 firedelay ! ;
+: rapidfire 500 firedelay ! ;
+: ceasefire 0 firedelay ! hpsopoff ;
+: i? 
+inlet dup ih @ < swap il @ > and  \ nonzero (true) means ok to fire (inlet pressure within range)
     hpso hl @ > and  \ hpso > hpso low level
     lpso ll @ > and
+    outlet dup ol @ > swap oo @ < and and \ don't fire if outlet is getting too high == outlet manifold blockage.
 ;
 
 : shoot i? if 1 fm ! then ;
 
 : fc \ firecontrol 
 inlet ih @ > if ceasefire purge then  \ overpressure means stop, cease and purge.
+					\ disabled because max inlet reading is about 24, and we go higher currently.
 firedelay @
     dup
-        332 - 0< if
+        332 - 0< if \ won't go faster than about 180 RPM, also used to park.
     drop
     else
-    i? if 1 fm ! 
-    ms 
+    i? if hpsopon 1 fm ! 
+    ms \ waits here between shot starts
+hpsopoff \ turn off hpso pump -- but will be back here with it on if ready to fire again immediately.
+\ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
-    drop
+    drop \ hammers at i? until it's true, then fires the next waiting shot.
 then
 then ;
 
 \ ==== initialisation here (ini) at end of file.
 : ini
 \ /------------------- nCS for CAN BUS module
-\ |       /----------- vent solenoid, off==vent
+\ |       /----------- outlet manifold vent solenoid, off==vent
 \ |       |/---------- HPSO pump
 \ |       ||/--------- input, valve error
 \ |       |||/-------- servo valve enable
@@ -248,4 +256,4 @@ ERR? if 0ERR! then \ clear error conditions.
 ['] co x3! \ control vent, under testing.
 ['] fc x2!
 ;
-
+: sr!v sr! sr@ .x cr ;

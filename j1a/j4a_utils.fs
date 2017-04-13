@@ -23,7 +23,6 @@
 : x3k 0 x3! 8 $4000 io! ;
 : xas 0 x1! 0 x2! 0 x3! ; \ tell the cores to do nothing next
 : xak x1k x2k x3k ; \ stop and reset all cores.
-: xid ( -- coreId ) $8000 io@ ; \ this IO register looks different to each core.
 
 
 : us ( n -- ) dup if begin 1- dup 0= until then drop ; \ threadsafe delay for j4a, 
@@ -56,6 +55,8 @@
 \ ... not on - leaves others alone..
 \ don't do a read-modify-write anywhere in io space, since it's not thread-safe.
 
+: xid ( -- coreId ) $8000 im! $2000 io@ ; \ was : $8000 io@ ; \ this IO register looks different to each core.
+
 : B>SPI $40 io! ; \ goes at 20 Mbits/s, no need to poll for one byte with the 10MHz j4a.
 : >SPI $c0 io! begin 1 im! $80 io@ 0<> until ; 
 \ but you could miss a word if you don't poll for a word-write.
@@ -77,5 +78,5 @@
 : sr@0 0 sr@A! ;
 : fillsr sr!0 256 0 do i sr! loop ;
 : 0sr sr!0 512 0 do 0 sr! loop ;
-: sr. sr@0 512 0 do sr@ u. loop ;
+: sr. sr@0 512 0 do sr@ .x cr loop ;
 \ sample ram is supposed to be 512x16 bits, and that's how it's connected, but it's only doing byte addresses?
