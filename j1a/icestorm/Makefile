@@ -4,6 +4,7 @@ VERILOGS8k = j1a8k.v uart.v ../verilog/j1.v ../verilog/stack2.v
 
 VERILOGS8k4 = j4a.v uart.v ../verilog/*.v
 
+PVS = async_inpin.v 
 
 SUBDIRS = ..
 
@@ -23,8 +24,8 @@ j1a8k.bin: $(VERILOGS8k) j1a8k.pcf Makefile ../build/ram.v
 	icepack j1a8k.txt j1a8k0.bin
 	icemulti -p0 j1a8k0.bin > j1a8k.bin && rm j1a8k0.bin
 
-j4a.bin: $(VERILOGS8k4) j4a.pcf Makefile ../build/ram.v
-	yosys  -q -p "synth_ice40 -top top -abc2 -blif j4a.blif" $(VERILOGS8k4)
+j4a.bin: $(VERILOGS8k4) j4a.pcf Makefile ../build/ram.v $(PVS)
+	yosys  -q -p "synth_ice40 -top top -abc2 -blif j4a.blif" $(VERILOGS8k4) $(PVS)
 	arachne-pnr -r -m 500 -d 8k -P ct256 -p j4a.pcf j4a.blif -o j4a.txt
 	#skipped:# icebox_explain j4a.txt > j4a.ex
 	icepack j4a.txt j4a0.bin

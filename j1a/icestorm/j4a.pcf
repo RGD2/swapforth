@@ -8,14 +8,6 @@ set_io D[4] A1
 set_io D[5] A2
 set_io D[6] B4
 set_io D[7] B5
-set_io D[8] A5
-set_io D[9] A6
-set_io D[10] C6
-set_io D[11] B6
-set_io D[12] B7
-set_io D[13] C7
-set_io D[14] A7
-set_io D[15] B8
 
 
 set_io TXD B12
@@ -92,3 +84,11 @@ set_io spower[2] J15
 
 # all the other connections are on J4, and a male-male 0.1" dual row pin header was soldered on, 
 # but then a 0.1" dual row female plugged on, to accept the wire-wrap connections to everything else.
+
+# Next are for float switch detection via probes:
+# Each input is wired to an opto coupler driven via a bridge rectifier in series with the excitation supply - another opto with a 3k 24V pullup, with a series 22uF 100V NP cap. Each of the BR's are fed via pots to balance current, then the other AC side connects to the probe for that channel, and the 24V gnd is chassis for the container. AC current through the BR and probe enables the opto, which pulls down the input pin. For sensitivity adjustment, ideally a high-value pot could be used instead of setting pins to pull-up mode, as the higher the pullup current, the greater opto LED power needed to pull the pin low when activated.
+
+set_io hf B7 # high float detect -- activelow, requires pullup
+set_io mf B8 # medium float detect -- activelow, requires pullup
+set_io lf A9 # low float detect -- activelow, requires pullup
+set_io ef C7 # 24.4kHz excitation source for the above three.

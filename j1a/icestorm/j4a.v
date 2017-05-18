@@ -120,7 +120,7 @@ endmodule
 
 module top(input pclk,
 
-           output [15:0] D,		// LED's
+           output [7:0] D,		// LED's
 
            output TXD,        // UART TX
            input RXD,         // UART RX
@@ -143,6 +143,11 @@ module top(input pclk,
 	   input sSCL,
 	   input sMOSI,
 	   output [2:0] spower,
+
+	   input hf,
+	   input mf,
+	   input lf,
+	   output ef,
 
            input reset
 );
@@ -352,18 +357,18 @@ mult16x16 _mul (.clk(clk),
      .tx_data(dout_[7:0]),
      .rx_data(uart0_data));
 
-  wire [15:0] LEDS;
+  wire [7:0] LEDS;
 
 
    // ######   LEDS   ##########################################
 
-  ioport _leds (.clk(clk),
+  ioport #(.pbits(8)) _leds (.clk(clk),
                .pins(D),
                .we(io_wr_ & io_addr_[2]),
                .wd(dout_),
                .rd(LEDS),
-               .dir(16'hffff),
-	       .mask(iomask));
+               .dir(8'hff),
+	       .mask(iomask[7:0]));
 
   wire [2:0] PIOS;
   wire writeflags = io_wr_ & io_addr_[13];
@@ -446,6 +451,21 @@ mult16x16 _mul (.clk(clk),
 .WE(haveWrite) // needs to be a clk earlier than the actual data+address. 
 );
 
+// ######   3-level AC fluid sensor with excitation source #######
+
+reg enableexcitation; always @(posedge clk) enableexcitation <= (writeflags & |dout_[8:9]) ? dout_[8] : enableexcitation ;
+reg [10:0] ec = 0; always @(posedge clk) ec <= enableexcitation ? ec + 1 : 0;
+assign ef = ec[10]; // 48MHz / 2^11; 23.4375 kHz maximum.
+wire fluidfull, fluidhigh, fluidlow;
+async_in_filter_pullup_inverted #(.FILTERBITS(11)) apin1(.clk(clk),.pin(hf),.rd(fluidfull));
+async_in_filter_pullup_inverted #(.FILTERBITS(11)) apin2(.clk(clk),.pin(mf),.rd(fluidhigh));
+async_in_filter_pullup_inverted #(.FILTERBITS(11)) apin3(.clk(clk),.pin(lf),.rd(fluidlow));
+// .FILTERBITS(11) here means each input will register as 'off' a full exitation clk period after the pin does
+// This timeout gets reset when the input goes high, so when the excitation signal makes it to an input pin,
+// the input pin just registers as 'on' continually, rather than oscillating, which might have caused it to appear
+// 'off' half the time.
+
+
     // ######   IO SUBSYSTEM ADDRESSING DOCUMENTATION  ######################################
 
 /* io_addr_[ ]
@@ -481,7 +501,7 @@ mult16x16 _mul (.clk(clk),
                     - msb is the 'not core0' slotID. moved from $8000 io@ because only tasksel in nuc.fs was using it.
                        - used by tasksel in nuc.fs, so 'exit' runs on core0 only
               w     - also connected to warmboot module and sample ram address pointer resets.
-                    - { Boot,  fSCK, fMOSI, fCS,  SetWriteAddr, SetReadAddr, unused, unused,  sampleAddr[7:0] }
+                    - { Boot,  fSCK, fMOSI, fCS,  SetWriteAddr, SetReadAddr, disableexcitation,  enableexcitation, sampleAddr[7:0] }
 4000  14    r/w     slot task fetch, handled by tasksel in nuc.fs. 
                     - Write here to selectively reset one or more slots, controlled by setting the low nibble.
 
@@ -495,11 +515,11 @@ mult16x16 _mul (.clk(clk),
 */
 
 // ###### ALL IO READ ADDRESS DECODING ######
-   wire [15:0] statusbits = { (|io_slot_), 9'd0, PIOS, fMISO, uart0_valid, !uart0_busy};
+   wire [15:0] statusbits = { (|io_slot_), fluidfull, fluidhigh, fluidlow, 6'd0, PIOS[2:0], fMISO, uart0_valid, !uart0_busy};
    assign io_din =
    ((io_addr_[ 0] ? {pmod_in}             : 16'd0)|
     (io_addr_[ 1] ? {pmod_dir}            : 16'd0)|
-    (io_addr_[ 2] ? {LEDS}                : 16'd0)|
+    (io_addr_[ 2] ? {8'd0,LEDS}           : 16'd0)|
     (io_addr_[ 3] ? {spislaverxd}         : 16'd0)|
     (io_addr_[ 4] ? {spirx2}              : 16'd0)|
     (io_addr_[ 5] ? {15'd0, ~spirunning2} : 16'd0)|

@@ -30,10 +30,21 @@
 : ms dup if begin 1- dup 0= 1332 us until then drop ;
 \ overwrites j1a's ms definition so ms works as expected, ie, 1 ms per count.
 \ note that do .. loop isn't threadsafe, because rO (the loop index offset) is a global.
-
-: reboot $8000 $2000 io! ; \ forces cold reboot (including FPGA reconfiguration)
+: s! $2000 io! ;
+: s@ $2000 io@ ; \ reads status flags
+: reboot $8000 s! ; \ forces cold reboot (including FPGA reconfiguration)
 \ actually also selects FPGA image number 0. (can be 0 to 3).
 \ eg: load image3: $8003 $2000 io!
+
+\ this next is for the fluid level sensor peripheral
+: exon $10 s! ; \ turns excitation square wave generator on.
+: exoff $20 s! ; \ disables excitation square wave generator.
+: ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
+: flag and 0<> ;
+: full? ex@ $4000 flag ;
+: high? ex@ $2000 flag ;
+: low? ex@ $1000 flag ;
+
 
 \ threadsafe IO port manipulation next: im! also works with leds to control specific leds.
 
