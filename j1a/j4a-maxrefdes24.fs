@@ -85,10 +85,9 @@ variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
 
-variable shotcount
-variable shotcountH
-: sc1+ shotcount @ 1+ dup 0= if 1 shotcountH +! then shotcount ! ;
-
+create shotcount 0. , , 
+: UD.  <# #S #> TYPE ;
+: shots shotcount 2@ ud. ;
 \ preset idle C0 value to final value (ptv: pulse tail value)
 ptv @ C0 !
 
@@ -105,7 +104,7 @@ sr@ \ now uses autoincrementing sample ram.
 pos @ 1+ 
   dup pl @ ( pulse length ) = if 
   drop 
-endshot sc1+ 
+endshot shotcount 2@ 1. d+ shotcount 2! 
 else 
   pos ! 
 then
@@ -168,11 +167,6 @@ sdelay @ 2* us
 : hpsopon %1000000 ps! ;
 : hpsopoff %1000000 pc! ; \ controls the high pressure seal oil pump, defaults to off.
 
-: vent %10000000 pc! ;
-: catch %10000000 ps! ; \ defaults to 'catch fuel'
-
-
-
 variable firedelay \ set above 332 to start fire, below to stop. 1000 = ~one/sec
 \ 3 Hz is the highest refire rate allowed == 333.
 \ : inlet ( -- inletbar*100[+/-10] ) 0 8 io! 8 io@ 10922 - 328 / 33 * ;
@@ -190,15 +184,130 @@ variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 : lpso lp @ ;
 : outlet op @ ;
 
-create ih 2500 , \ 25.00 bar def max
+create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
 create il 1800 , \ 18 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
 create hl 29800 , \ min HPSO, about 690 bar
 create ll 14894 , \ min LPSO, about 25 bar, one more than the max that inlet pump ought to be able to reach. 
-create oh 20852 , \ outlet high max, 110 bar
+create oo 24879 , \ outlet Overload, 150 bar (~230 bar is max. visible)
+create oh 20919 , \ outlet high max, 110 bar
+create ot 19929 , \ outlet target pressure 100 bar
 create ol 18166 , \ outlet low min, 90 bar
-create oo 31774 , \ outlet Overload, 220 bar (~230 bar is max. visible)
-: co 0 sp@ ip ! 1 sp@ hp ! 2 sp@ lp ! 3 sp@ dup op ! dup ol @ < if catch then oh @ > if vent then ;
+create ou 17949 , \ outlet underpressure, 80 bar
+
+\ ----- 32 bit wall clock in ram
+create wcd 0. , , \ wall clock, double.
+variable lhc \ last hardware clk
+: wc@ ( -- wcl wch ) wcd 2@ ;
+: ddelta ( oldd newd -- durationd ) 2swap dnegate d+ ; \ like 'swap -' but for two ud 's 
+\ wc@ ...... wc@ ddelta d. \ will print number of clk ticks elapsed between each wc@ call. Works at least upto ~44 seconds.
+\ may be inaccurate due to wall clock tick unsteadiness
+variable tt \ use to see wct update time in ticks.
+: wct \ wall clock tick - update at least every couple ms to avoid HW clock overflow, but does not need to be updated smoothly.
+wc@ 
+        lhc @ 
+            $8000 io@ \ get HW clk
+                dup lhc ! \ update lhc
+                swap - \ new minus old
+            dup tt ! \ update wct update time -- good for estimating 32 bit wall clock inaccuracy, but might not be steady.
+            0  \ make into a d
+                d+   \ add onto wall clk
+( : wc!)  wcd 2! ( ; wc! ) \ wall clock updated
+\ to stay threadsafe, only one core should ever write.
+;
+
+: m*/ ( d1 n2 u3 -- dquot ) \ double m-star-slash, dqout = d1 * n2 / u3
+>r s>d >r abs rot rot s>d r> xor r> swap >r >r dabs rot tuck um* 2swap um* swap
+>r 0 d+ r> rot rot r@ um/mod rot rot r> um/mod nip swap r> if dnegate then
+; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
+
+create lov 0. , , \ last open valve time, d
+create ct 0. , , \ closed duration time, d 
+create lcv 0. , , \ last closed valve time, d
+variable oc \ open count -- counts how many 'ct' durations the valve has been open for -- reset when valve closes.
+: open %10000000 dup p@ and swap pc! if 
+\ here we have just opened the manifold valve.
+wc@ \ get the current time
+        2dup lov 2! \ update lov to the current time
+        lcv 2@ \ get the time the valve last closed
+                dnegate d+ \ gets the difference -- the duration the valve was last closed for
+        \ now should just make sure it isn't too big or too small
+        ct 2@ \ save it as the 'closed time' duration, ct
+then ;
+variable sud \ speed up delta (ms / ct slower than 3)
+: close %10000000 dup p@ and swap ps! 0= if
+\ here we have just closed the manifold valve.
+wc@ lcv 2!
+oc @
+    \ conditions to close valve have happened (or have been overridden). 
+    dup 3 < if \ if open duty cycle is <75%, we're going too slow.
+    3 swap - \ now 1,2 or 3.
+    sud @ * \ scales to 'speed up multiplier' ms
+    firedelay @ 
+        dup 0<> if 
+        swap - 
+    500 max firedelay ! 
+else
+        drop drop 
+then
+else 
+    drop
+then
+0 oc ! \ reset open count to zero
+then ;
+
+: co \ control outlet valve -- state updating loop, critical timing not necessary.
+wct \ update wall clock first
+0 sp@ ip !
+1 sp@ hp !
+2 sp@ lp !
+3 sp@ dup op ! 
+    \ controls outlet valve based on pressure and fill level
+    dup oh @ > high? or if \ manifold pressure over normal upper limit or level reaches high limit
+    open drop \ open manifold outlet valve
+else \ valve opening triggers override valve closing triggers
+    ol @ < low? or if \ manifold pressure low or level low
+close \ close manifold outlet valve
+then then
+%10000000 p@ and 0= \ what's the valve's state?
+if \ while valve is open
+\ how many 'close time' durations have we been open for so far this time?
+lov 2@ wc@ ddelta \ this is the current time since last opened the valve
+        \ this smoothly increasing delay is bigger or less than ct (the last 'closed time' duration)
+        ct 2@ dnegate d+ 
+        dup 0< invert if \ not negative, we've waited a ct into a apparent length of the open-time
+        wc@ 2swap dnegate d+ lov 2! \ update - make lov look only as far ago as the currently positive difference.
+oc @ 1+ dup oc ! \ increment oc and keep on stack
+    \ now we have updated oc, how big is it?
+    4 - dup ( if 4 or more ) 0< invert if
+    \ >4x as much open as closed means duty cycle > 80%, so we should start slowing down.
+    \ want to slow down faster the longer this goes on -- ulimately stopping if we reach firedelay>2000 or so, since that's too long.
+    \ this section only runs for each 'ct' delay that the valve is open for beyond the first 4, so the duty cycle is changing like:
+    \ > 4/5 (80%), 5/6, 6/7, 7/8, 8/9, and 9/10..
+    \ but on the next cycle, with a longer firedelay, the ct will also be longer -- number of shots to fill should be about constant, 
+    \ so it will take proportionally longer with longer firedelay.
+    \ we want to be around 3/5 ~ 60%-79.9%, but we want to slow down gradually.
+    \ we need to slow down just enough that with no other changes, we land on about 79% duty cycle...
+    case
+    4 of 10 endof
+    5 of 40 endof
+    6 of 160 endof
+    7 of 640 endof
+    8 of 650 endof
+    >R -5000 R> \ default which should just stop - already going slower than 30 RPM, so give up.
+    endcase
+    firedelay @ +
+    0 max 2000 min \ coerce to zero if giving up, or no slower than 30 RPM otherwise.
+    firedelay !
+else 
+    drop \ oc < 4, means duty cycle this time hasn't reached 80% open yet.
+then
+else 
+        drop drop \ delay was negative -- haven't waited another ct yet, so drop the duration and do nothing.
+then 
+else \ valve is closed anyway
+then
+;
 \ bang/bang control works fairly well.
 \ the signal is on until oh is exceeded, then off until outlet is below ol.
 \ it runs continually, and incidentally also updates ip/op/hp/lp for firecontrol thread.
@@ -206,29 +315,34 @@ create oo 31774 , \ outlet Overload, 220 bar (~230 bar is max. visible)
 : openfire 1000 firedelay ! ;
 : rapidfire 500 firedelay ! ;
 : ceasefire 0 firedelay ! hpsopoff ;
-: i? 
-inlet dup ih @ < swap il @ > and  \ nonzero (true) means ok to fire (inlet pressure within range)
+: i? ( -- f )  \ nonzero (true) means ok to fire 
+\ this is very important: The refil can be late / inlet valve can be still open, and we must not fire if so, because it WILL BREAK.
+\ under that condition usually it's because of insufficient pressure at the inlet
+inlet dup ih @ < swap il @ > and \ (inlet pressure within range -- probably inlet valve has shut already.)
     hpso hl @ > and  \ hpso > hpso low level
     lpso ll @ > and
-    outlet dup ol @ > swap oo @ < and and \ don't fire if outlet is getting too high == outlet manifold blockage.
+    outlet dup ou @ > swap oo @ < and and \ outlet pressure within hard limits
+    full? invert and \ don't fire if outlet manifold is completely full.
 ;
 
-: shoot i? if 1 fm ! then ;
+: shoot i? if 1 fm ! then ; \ use this to override / fire manually.
 
 : fc \ firecontrol 
 inlet ih @ > if ceasefire purge then  \ overpressure means stop, cease and purge.
 					\ disabled because max inlet reading is about 24, and we go higher currently.
-firedelay @
+firedelay @ 
     dup
         332 - 0< if \ won't go faster than about 180 RPM, also used to park.
-    drop
-    else
-    i? if hpsopon 1 fm ! 
-    ms \ waits here between shot starts
-hpsopoff \ turn off hpso pump -- but will be back here with it on if ready to fire again immediately.
+    drop \ park / ceasefire state
+    else \ hesitate or shoot and wait
+    i? if hpsopon 1 fm !  \ shoot now
+    ms \ waits here firedelay ms between shot starts
+hpsopoff \ turn off hpso pump automaticall after firedelay -- but will be back here with it on if ready to fire again immediately.
 \ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
-    drop \ hammers at i? until it's true, then fires the next waiting shot.
+    drop \ hesitate state, fc hammers at i? until it's true, then immediately fires the next waiting shot.
+    \ this allows hesitation until conditions are acceptable, which analysis will detect as some kind of problem in the fuel system.
+    \ because it will cause an isolated 'late' shot. 
 then
 then ;
 
@@ -257,3 +371,4 @@ ERR? if 0ERR! then \ clear error conditions.
 ['] fc x2!
 ;
 : sr!v sr! sr@ ."    " .x cr cr ;
+

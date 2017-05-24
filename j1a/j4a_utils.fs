@@ -37,13 +37,13 @@
 \ eg: load image3: $8003 $2000 io!
 
 \ this next is for the fluid level sensor peripheral
-: exon $10 s! ; \ turns excitation square wave generator on.
-: exoff $20 s! ; \ disables excitation square wave generator.
+: exon $100 s! ; \ turns excitation square wave generator on.
+: exoff $200 s! ; \ disables excitation square wave generator.
 : ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
 : flag and 0<> ;
 : full? ex@ $4000 flag ;
 : high? ex@ $2000 flag ;
-: low? ex@ $1000 flag ;
+: low? ex@ $1000 flag invert ; \ true if 'low'
 
 
 \ threadsafe IO port manipulation next: im! also works with leds to control specific leds.
