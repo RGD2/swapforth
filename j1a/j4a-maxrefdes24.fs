@@ -80,7 +80,7 @@ create reqCom -1 , \ set to request CONS
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 606 , \ retune this if you play with runDAC or 2>DAC
+create sdelay 599, \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
