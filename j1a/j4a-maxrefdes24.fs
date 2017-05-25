@@ -174,8 +174,8 @@ variable firedelay \ set above 332 to start fire, below to stop. 1000 = ~one/sec
 \ all data channels from spislave module will run from 0 to 32767.
 \ 32767 == 3.3V at the ADC input, 9929.394 counts per volt.
 \ different sensors have different atmospheric pressure null values and sensitivities in counts per bar.
-variable ip \ inlet pressure, 10922 null, 993 counts/bar.
-variable op \ outlet pressure, 10029 null, 99 counts/bar.
+variable ip \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
+variable op \ outlet pressure, 9728 null, 99 counts/bar. ~3 bar accurate
 variable hp \ high pressure seal oil pressure, 9929 null, 29 counts/bar.
 variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 \ updateps / sp@ needs to run on just one core - probably should be done just before using op value.
@@ -222,6 +222,14 @@ wc@
 \ to stay threadsafe, only one core should ever write.
 ;
 
+: rundac rundac 
+wct \ update wall clock first
+0 sp@ ip !
+1 sp@ hp !
+2 sp@ lp !
+3 sp@ op ! 
+;
+
 create lov 0. , , \ last open valve time, d
 create ct 0. , , \ closed duration time, d 
 create lcv 0. , , \ last closed valve time, d
@@ -258,11 +266,7 @@ then
 then ;
 
 : co \ control outlet valve -- state updating loop, critical timing not necessary.
-wct \ update wall clock first
-0 sp@ ip !
-1 sp@ hp !
-2 sp@ lp !
-3 sp@ dup op ! 
+outlet
     ( outletrawp )
     \ controls outlet valve based on pressure and fill level
     dup oh @ > high? or \ manifold pressure over normal upper limit or level reaches high limit
