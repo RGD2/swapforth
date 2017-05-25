@@ -179,7 +179,13 @@ variable op \ outlet pressure, 10029 null, 99 counts/bar.
 variable hp \ high pressure seal oil pressure, 9929 null, 29 counts/bar.
 variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 \ updateps / sp@ needs to run on just one core - probably should be done just before using op value.
-: inlet ip @ 10922 - 328 / 33 * ; \ theadsafe
+
+: m*/ ( d1 n2 u3 -- dquot ) \ double m-star-slash, dqout = d1 * n2 / u3
+>r s>d >r abs rot rot s>d r> xor r> swap >r >r dabs rot tuck um* 2swap um* swap
+>r 0 d+ r> rot rot r@ um/mod rot rot r> um/mod nip swap r> if dnegate then
+; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
+: inlet ip @ 10922 - 0 100 993  m*/ drop ; \ as below, but more accurate/slightly slower calc
+\ : inlet ip @ 10922 - 328 / 33 * ; \ theadsafe
 : hpso hp @ ;
 : lpso lp @ ;
 : outlet op @ ;
@@ -210,16 +216,11 @@ wc@
                 dup lhc ! \ update lhc
                 swap - \ new minus old
             dup tt ! \ update wct update time -- good for estimating 32 bit wall clock inaccuracy, but might not be steady.
-            0  \ make into a d
+            0  \ make into a ud
                 d+   \ add onto wall clk
 ( : wc!)  wcd 2! ( ; wc! ) \ wall clock updated
 \ to stay threadsafe, only one core should ever write.
 ;
-
-: m*/ ( d1 n2 u3 -- dquot ) \ double m-star-slash, dqout = d1 * n2 / u3
->r s>d >r abs rot rot s>d r> xor r> swap >r >r dabs rot tuck um* 2swap um* swap
->r 0 d+ r> rot rot r@ um/mod rot rot r> um/mod nip swap r> if dnegate then
-; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
 
 create lov 0. , , \ last open valve time, d
 create ct 0. , , \ closed duration time, d 
@@ -232,7 +233,7 @@ wc@ \ get the current time
         lcv 2@ \ get the time the valve last closed
                 dnegate d+ \ gets the difference -- the duration the valve was last closed for
         \ now should just make sure it isn't too big or too small
-        ct 2@ \ save it as the 'closed time' duration, ct
+        ct 2! \ save it as the 'closed time' duration, ct
 then ;
 variable sud \ speed up delta (ms / ct slower than 3)
 : close %10000000 dup p@ and swap ps! 0= if
@@ -262,15 +263,18 @@ wct \ update wall clock first
 1 sp@ hp !
 2 sp@ lp !
 3 sp@ dup op ! 
+    ( outletrawp )
     \ controls outlet valve based on pressure and fill level
-    dup oh @ > high? or if \ manifold pressure over normal upper limit or level reaches high limit
+    dup oh @ > high? or \ manifold pressure over normal upper limit or level reaches high limit
+        if 
     open drop \ open manifold outlet valve
 else \ valve opening triggers override valve closing triggers
-    ol @ < low? or if \ manifold pressure low or level low
-close \ close manifold outlet valve
-then then
+    ol @ < low? or \ manifold pressure low or level low
+    if close then \ close manifold outlet valve
+then
+
 %10000000 p@ and 0= \ what's the valve's state?
-if \ while valve is open
+    if \ while valve is open
 \ how many 'close time' durations have we been open for so far this time?
 lov 2@ wc@ ddelta \ this is the current time since last opened the valve
         \ this smoothly increasing delay is bigger or less than ct (the last 'closed time' duration)
@@ -279,7 +283,7 @@ lov 2@ wc@ ddelta \ this is the current time since last opened the valve
         wc@ 2swap dnegate d+ lov 2! \ update - make lov look only as far ago as the currently positive difference.
 oc @ 1+ dup oc ! \ increment oc and keep on stack
     \ now we have updated oc, how big is it?
-    4 - dup ( if 4 or more ) 0< invert if
+    dup 4 - ( if 4 or more ) 0< invert if
     \ >4x as much open as closed means duty cycle > 80%, so we should start slowing down.
     \ want to slow down faster the longer this goes on -- ulimately stopping if we reach firedelay>2000 or so, since that's too long.
     \ this section only runs for each 'ct' delay that the valve is open for beyond the first 4, so the duty cycle is changing like:
@@ -315,6 +319,7 @@ then
 : openfire 1000 firedelay ! ;
 : rapidfire 500 firedelay ! ;
 : ceasefire 0 firedelay ! hpsopoff ;
+
 : i? ( -- f )  \ nonzero (true) means ok to fire 
 \ this is very important: The refil can be late / inlet valve can be still open, and we must not fire if so, because it WILL BREAK.
 \ under that condition usually it's because of insufficient pressure at the inlet
@@ -334,7 +339,7 @@ firedelay @
     dup
         332 - 0< if \ won't go faster than about 180 RPM, also used to park.
     drop \ park / ceasefire state
-    else \ hesitate or shoot and wait
+else \ hesitate or shoot and wait
     i? if hpsopon 1 fm !  \ shoot now
     ms \ waits here firedelay ms between shot starts
 hpsopoff \ turn off hpso pump automaticall after firedelay -- but will be back here with it on if ready to fire again immediately.
@@ -345,6 +350,8 @@ else
     \ because it will cause an isolated 'late' shot. 
 then
 then ;
+: startfc ['] fc x2! ;
+: stopfc x2k ;
 
 \ ==== initialisation here (ini) at end of file.
 : ini
@@ -367,8 +374,8 @@ wc rup or vbot or d0! ! \ tell channel 0 conditioner chip to activate 4..20mA ou
 ['] runDAC x1! \ start maxrefdes24 driver running.
 50 ms
 ERR? if 0ERR! then \ clear error conditions.
-['] co x3! \ control vent, under testing.
-['] fc x2!
+['] co x3!
+startfc
 ;
 : sr!v sr! sr@ ."    " .x cr cr ;
 
