@@ -223,7 +223,6 @@ wc@
 ;
 
 : rundac rundac 
-wct \ update wall clock first
 0 sp@ ip !
 1 sp@ hp !
 2 sp@ lp !
@@ -266,6 +265,7 @@ then
 then ;
 
 : co \ control outlet valve -- state updating loop, critical timing not necessary.
+wct
 outlet
     ( outletrawp )
     \ controls outlet valve based on pressure and fill level
