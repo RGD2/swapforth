@@ -532,7 +532,7 @@ async_in_filter_pullup_inverted #(.FILTERBITS(11)) apin3(.clk(clk),.pin(lf),.rd(
     (io_addr_[12] ? {8'd0, uart0_data}    : 16'd0)|
     (io_addr_[13] ? statusbits            : 16'd0)|
     (io_addr_[14] ? {taskexec}            : 16'd0)|
-    (io_addr_[15] ? ticks                 : 16'd0))&iomask;
+    (io_addr_[15] ? ticks                 : 16'd0));
 
 // ###### WARMBOOT MODULE
   reg boot, s0, s1;

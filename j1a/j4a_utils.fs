@@ -26,7 +26,7 @@
 
 
 : us ( n -- ) dup if begin 1- dup 0= until then drop ; \ threadsafe delay for j4a, 
-\ about .75us/count, plus overhead
+\ actually about .75us/count with the 48MHz clk, plus overhead
 : ms dup if begin 1- dup 0= 1332 us until then drop ;
 \ overwrites j1a's ms definition so ms works as expected, ie, 1 ms per count.
 \ note that do .. loop isn't threadsafe, because rO (the loop index offset) is a global.
@@ -53,12 +53,12 @@
 : p@ ( -- pmoddata ) 1 io@ ; \ reads from actual pins
 
 : im! ( io-mask-preset -- ) $8000 io! ; \ call before next io! or io@, 
-\ to touch only selected bits of leds, GPIO or GPIO Direction register in a threadsafe way
-\ doesn't work for write to other io! peripherals, but works to mask reads from anywhere.
-
-\ resets to all set after next io operation by same core. 
+\ to write only selected bits of leds, GPIO or GPIO Direction register in a threadsafe way
 \ only masks io! to the leds or pmod (16 bit bidirectional io port), and it's direction register.
-\ also works to mask bits of any io@ read
+\ doesn't work for write to other io! peripherals. 
+\ resets to all set after next io operation by same core, regardless of what the io address is.
+\ use ' ioa io@ mask and ' to select out bits as usual.
+
 : mp! ( mask pmoddata -- ) swap im! p! ;
 : md! ( mask pmoddir -- ) swap im! pd! ;
 : ps! ( pins-to-write -- ) dup mp! ; \ pin set write, sets particular pins, leaves others alone.
@@ -66,10 +66,10 @@
 \ ... not on - leaves others alone..
 \ don't do a read-modify-write anywhere in io space, since it's not thread-safe.
 
-: xid ( -- coreId ) $8000 im! $2000 io@ ; \ was : $8000 io@ ; \ this IO register looks different to each core.
+: xid ( -- coreId ) $2000 io@ $8000 and ; \ was : $8000 io@ ; \ this IO bit is set if not core0
 
 : B>SPI $40 io! ; \ goes at 20 Mbits/s, no need to poll for one byte with the 10MHz j4a.
-: >SPI $c0 io! begin 1 im! $80 io@ 0<> until ; 
+: >SPI $c0 io! begin $80 io@ 1 and 0<> until ; 
 \ but you could miss a word if you don't poll for a word-write.
 : >SPI> >SPI $40 io@ 2* ; \ note, last bit is lost, but this doesn't matter for our purposes.
 
@@ -91,3 +91,25 @@
 : 0sr sr!0 512 0 do 0 sr! loop ;
 : sr. sr@0 512 0 do sr@ .x cr loop ;
 \ sample ram is supposed to be 512x16 bits, and that's how it's connected, but it's only doing byte addresses?
+
+\ Wall clock peripheral, uses hardware tick clock
+\ ----- 32 bit wall clock in ram
+create wcd 0. , , \ wall clock, double.
+variable lhc \ last hardware clk
+: wc@ ( -- wcl wch ) wcd 2@ ; \ call this to get the time, may be inaccurate by +/- tt @ ticks.
+\ wc@ ...... wc@ ddelta d. \ will print number of clk ticks elapsed between each wc@ call. Works at least upto ~44 seconds.
+\ may be inaccurate due to wall clock tick unsteadiness
+variable tt \ use to see wct update time in ticks.
+: wct \ wall clock tick - update at least every couple ms to avoid HW clock overflow, but does not need to be updated smoothly.
+wc@ 
+        lhc @ 
+            $8000 io@ \ get HW clk
+                dup lhc ! \ update lhc
+                swap - \ new minus old
+            dup tt ! \ update wct update time -- good for estimating 32 bit wall clock inaccuracy, but might not be steady.
+            0  \ make into a ud
+                d+   \ add onto wall clk
+( : wc!)  wcd 2! ( ; wc! ) \ wall clock updated
+\ to stay threadsafe, only one core should ever write.
+;
+
