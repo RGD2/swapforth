@@ -96,12 +96,12 @@
 \ ----- 32 bit wall clock in ram
 create wcd 0. , , \ wall clock, double.
 variable lhc \ last hardware clk
-: wc@ ( -- wcl wch ) wcd 2@ ; \ call this to get the time, may be inaccurate by +/- tt @ ticks.
-\ wc@ ...... wc@ ddelta d. \ will print number of clk ticks elapsed between each wc@ call. Works at least upto ~44 seconds.
+: dwc ( -- wcl wch ) wcd 2@ ; \ call this to get the time, may be inaccurate by +/- tt @ ticks.
+\ dwc ...... dwc ddelta d. \ will print number of clk ticks elapsed between each dwc call. Works at least upto ~44 seconds.
 \ may be inaccurate due to wall clock tick unsteadiness
 variable tt \ use to see wct update time in ticks.
 : wct \ wall clock tick - update at least every couple ms to avoid HW clock overflow, but does not need to be updated smoothly.
-wc@ 
+dwc 
         lhc @ 
             $8000 io@ \ get HW clk
                 dup lhc ! \ update lhc

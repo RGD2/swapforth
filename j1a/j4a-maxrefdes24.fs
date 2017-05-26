@@ -40,16 +40,16 @@ variable D2!
 variable D3!
 \ with this stuff:
 \ SPI command bits for conditioner chips (Dn[!@]) (use one of, zeros means nop.)
-$a000 constant rC \ read config
+\ $a000 constant rC \ read config
 $8000 constant rE \ read Errorflags
 $2000 constant wC \ write config
 
 \ config fields for rC and wC (combine with or)
-$0800 constant Vm \ volt mode (current mode if not set)
+\ $0800 constant Vm \ volt mode (current mode if not set)
 \ or with one of the following three, else you're in standby mode (volts or not)
 $0600 constant rup \ reduced unipolar mode (0.5V or 4..20mA)
-$0400 constant up \ unipolar mode (0..10V or 0..20mA)
-$0200 constant bp \ bipolar mode (-10..10V or -20..20mA)
+\ $0400 constant up \ unipolar mode (0..10V or 0..20mA)
+\ $0200 constant bp \ bipolar mode (-10..10V or -20..20mA)
 \ next set of bits selects voltage brownout detection threshold.
 \ 10V + 2V * X, where X is 0-7, giving a range 10V .. 24V in 2V steps.
 \ $01C0 => X == 7. ie, +/-24V  threshold (most sensitive)
@@ -57,16 +57,16 @@ $0200 constant bp \ bipolar mode (-10..10V or -20..20mA)
 \ proper setting depends on what minimum overhead voltage
 \ the connected load needs to function properly (assuming loop powered load)
 $0180 constant vbot \ +/- 22V
-$0020 constant tsd \ thermal shutdown protection
+\ $0020 constant tsd \ thermal shutdown protection
 \ remainder of bits should be zeros
 
 \ pre-set defaults: no tsd, current mode, standby.
 \ error bitfields for rE
-$0400 constant eI \ intermittent error flag - fault cleared itself.
-$0200 constant eSC \ short circuit detect, Iout > 30 mA
-$0100 constant eOC \ open circuit detect, V within 30 mV of supply
-$0080 constant eOH \ internal overtemperature. >150&deg;C Doesn't do intermittent.
-$0040 constant eSB \ supply brownout. Either supply went into brownout limits.
+\ $0400 constant eI \ intermittent error flag - fault cleared itself.
+\ $0200 constant eSC \ short circuit detect, Iout > 30 mA
+\ $0100 constant eOC \ open circuit detect, V within 30 mV of supply
+\ $0080 constant eOH \ internal overtemperature. >150&deg;C Doesn't do intermittent.
+\ $0040 constant eSB \ supply brownout. Either supply went into brownout limits.
 \ performing rE resets the output error signal (ERR on p@), which is edge sensitive to new error conditions.
 \ rE will clear the error flags when the error condition is no longer present.
 \ if the error condition resolved before rE, then eI will be set to indicate the error was intermittent.
@@ -76,11 +76,11 @@ variable D0@
 variable D1@
 variable D2@
 variable D3@
-create reqCom -1 , \ set to request CONS
+create reqCom 1 , \ set to request CONS
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 599 , \ retune this if you play with runDAC or 2>DAC
+create sdelay 597 , \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
@@ -100,21 +100,21 @@ fm @ if
 \ pv pos @ cells + @ \ get next pv[pos] sample
 sr@ \ now uses autoincrementing sample ram. 
   soffset @ + \ add soffset 
-  Cs0 2>DAC \ send to channel 0.
+  $31 2>DAC \ send to channel 0.
 pos @ 1+ 
   dup pl @ ( pulse length ) = if 
   drop 
-endshot shotcount 2@ 1. d+ shotcount 2! 
+endshot shotcount 2@ 1 m+ shotcount 2! 
 else 
   pos ! 
 then
 else \ non firing mode.
-C0 @ soffset @ + Cs0 2>DAC
+C0 @ soffset @ + $31 2>DAC
 1 us
 then
-C1 @ Cs1 2>DAC
-C2 @ Cs2 2>DAC
-C3 @ Cs3 2>DAC
+C1 @ $32 2>DAC
+C2 @ $34 2>DAC
+C3 @ $38 2>DAC
 reqCom @ if 
 $06 $04 mp!
 \ must access all conditioner chips in the one SPI access.
@@ -129,7 +129,7 @@ D3! @ dup rE and if >SPI> D3@ @ or D3@ ! else >SPI 2 us then
 $06 dup mp! 
 0 reqCom ! else 8 us then
 
-ERR? if 4 io@ $0080 or 4 io! else 4 io@ $ff7f and 4 io! then
+$80 dup im! ERR? and leds \ set only the 8th led to reflect ERR?
 sdelay @ us
 
 ;
@@ -144,9 +144,9 @@ rE D3! !
 0 D1@ !
 0 D2@ !
 0 D3@ !
--1 reqCom !
+1 reqCom !
 sdelay @ 2* us
--1 reqCom !
+1 reqCom !
 0 D0! !
 0 D1! !
 0 D2! !
@@ -201,27 +201,6 @@ create ot 19929 , \ outlet target pressure 100 bar
 create ol 18166 , \ outlet low min, 90 bar
 create ou 17949 , \ outlet underpressure, 80 bar
 
-\ ----- 32 bit wall clock in ram
-create wcd 0. , , \ wall clock, double.
-variable lhc \ last hardware clk
-: wc@ ( -- wcl wch ) wcd 2@ ;
-: ddelta ( oldd newd -- durationd ) 2swap dnegate d+ ; \ like 'swap -' but for two ud 's 
-\ wc@ ...... wc@ ddelta d. \ will print number of clk ticks elapsed between each wc@ call. Works at least upto ~44 seconds.
-\ may be inaccurate due to wall clock tick unsteadiness
-variable tt \ use to see wct update time in ticks.
-: wct \ wall clock tick - update at least every couple ms to avoid HW clock overflow, but does not need to be updated smoothly.
-wc@ 
-        lhc @ 
-            $8000 io@ \ get HW clk
-                dup lhc ! \ update lhc
-                swap - \ new minus old
-            dup tt ! \ update wct update time -- good for estimating 32 bit wall clock inaccuracy, but might not be steady.
-            0  \ make into a ud
-                d+   \ add onto wall clk
-( : wc!)  wcd 2! ( ; wc! ) \ wall clock updated
-\ to stay threadsafe, only one core should ever write.
-;
-
 : rundac rundac 
 0 sp@ ip !
 1 sp@ hp !
@@ -230,22 +209,23 @@ fm @ 0= if 3 sp@ op ! then \ only update op if not actually firing right now -- 
 ;
 
 create lov 0. , , \ last open valve time, d
-create ct 0. , , \ closed duration time, d 
+create ctc 0. , , \ closed duration time, d 
+: ct ctc 2@ ;
 create lcv 0. , , \ last closed valve time, d
 variable oc \ open count -- counts how many 'ct' durations the valve has been open for -- reset when valve closes.
 : open %10000000 dup p@ and swap pc! if 
 \ here we have just opened the manifold valve.
-wc@ \ get the current time
+dwc \ get the current time
         2dup lov 2! \ update lov to the current time
         lcv 2@ \ get the time the valve last closed
                 dnegate d+ \ gets the difference -- the duration the valve was last closed for
         \ now should just make sure it isn't too big or too small
-        ct 2! \ save it as the 'closed time' duration, ct
+        ctc 2! \ save it as the 'closed time' duration, ct
 then ;
 variable sud \ speed up delta (ms / ct slower than 3)
 : close %10000000 dup p@ and swap ps! 0= if
 \ here we have just closed the manifold valve.
-wc@ lcv 2!
+dwc lcv 2!
 oc @
     \ conditions to close valve have happened (or have been overridden). 
     dup 3 < if \ if open duty cycle is <75%, we're going too slow.
@@ -264,6 +244,8 @@ then
 0 oc ! \ reset open count to zero
 then ;
 
+: ddelta ( oldd newd -- durationd ) 2swap dnegate d+ ; \ like 'swap -' but for two ud 's 
+
 : co \ control outlet valve -- state updating loop, critical timing not necessary.
 wct
 outlet
@@ -280,14 +262,16 @@ then
 
 %10000000 p@ and 0= \ what's the valve's state?
     \ true if open, but we also need ct to make sense
-    ct 2@ 
-    if \ while valve is open
+    ct d0= invert and \ abort if ct is zero
+    ct -960000000. d+ nip 0< and \ ct should be less than 20 seconds
+    ct nip 0< invert and \ also ct is positive - above test fails for ct > $b9000000. 
+    if \ while valve is open ( and ct relatively short )
 \ how many 'close time' durations have we been open for so far this time?
-lov 2@ wc@ ddelta \ this is the current time since last opened the valve
+lov 2@ dwc ddelta \ this is the current time since last opened the valve
         \ this smoothly increasing delay is bigger or less than ct (the last 'closed time' duration)
-        ct 2@ dnegate d+ 
+        ct dnegate d+ 
         dup 0< invert if \ not negative, we've waited a ct into a apparent length of the open-time
-        wc@ 2swap dnegate d+ lov 2! \ update - make lov look only as far ago as the currently positive difference.
+        dwc 2swap dnegate d+ lov 2! \ update - make lov look only as far ago as the currently positive difference.
 oc @ 1+ dup oc ! \ increment oc and keep on stack
     \ now we have updated oc, how big is it?
     dup 4 - ( if 4 or more ) 0< invert if
