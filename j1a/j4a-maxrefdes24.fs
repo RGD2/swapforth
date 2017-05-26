@@ -245,7 +245,16 @@ then
 then ;
 
 : ddelta ( oldd newd -- durationd ) 2swap dnegate d+ ; \ like 'swap -' but for two ud 's 
-
+: trt ( n1 -- n2 ) \ assumes n1 > 3
+    case
+    4 of 10 endof
+    5 of 40 endof
+    6 of 160 endof
+    7 of 320 endof
+    8 of 500 endof
+    >R -5000 R> \ default which should just stop - already going slower than 30 RPM, so give up.
+    endcase
+;
 : co \ control outlet valve -- state updating loop, critical timing not necessary.
 wct
 outlet
@@ -283,17 +292,9 @@ oc @ 1+ dup oc ! \ increment oc and keep on stack
     \ so it will take proportionally longer with longer firedelay.
     \ we want to be around 3/5 ~ 60%-79.9%, but we want to slow down gradually.
     \ we need to slow down just enough that with no other changes, we land on about 79% duty cycle...
-    case
-    4 of 10 endof
-    5 of 40 endof
-    6 of 160 endof
-    7 of 640 endof
-    8 of 650 endof
-    >R -5000 R> \ default which should just stop - already going slower than 30 RPM, so give up.
-    endcase
-    firedelay @ +
+    trt firedelay @ +
     0 max 2000 min \ coerce to zero if giving up, or no slower than 30 RPM otherwise.
-    firedelay !
+    dup 500 - 0> if firedelay ! else drop then \ no point unless it's to be >500. firedelay might have been 0
 else 
     drop \ oc < 4, means duty cycle this time hasn't reached 80% open yet.
 then
