@@ -80,7 +80,7 @@ create reqCom -1 , \ set to request CONS
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 599, \ retune this if you play with runDAC or 2>DAC
+create sdelay 599 , \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
@@ -226,7 +226,7 @@ wc@
 0 sp@ ip !
 1 sp@ hp !
 2 sp@ lp !
-3 sp@ op ! 
+fm @ 0= if 3 sp@ op ! then \ only update op if not actually firing right now -- deletes glitches 
 ;
 
 create lov 0. , , \ last open valve time, d
@@ -269,7 +269,8 @@ wct
 outlet
     ( outletrawp )
     \ controls outlet valve based on pressure and fill level
-    dup oh @ > high? or \ manifold pressure over normal upper limit or level reaches high limit
+    dup 
+        oh @ > high? or \ manifold pressure over normal upper limit or level reaches high limit
         if 
     open drop \ open manifold outlet valve
 else \ valve opening triggers override valve closing triggers
@@ -278,6 +279,8 @@ else \ valve opening triggers override valve closing triggers
 then
 
 %10000000 p@ and 0= \ what's the valve's state?
+    \ true if open, but we also need ct to make sense
+    ct 2@ 
     if \ while valve is open
 \ how many 'close time' durations have we been open for so far this time?
 lov 2@ wc@ ddelta \ this is the current time since last opened the valve
