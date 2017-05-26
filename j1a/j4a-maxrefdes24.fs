@@ -21,15 +21,15 @@ $31 constant Cs0
 $32 constant Cs1
 $34 constant Cs2
 $38 constant Cs3
-$3f constant Csa \ all at once
+\ $3f constant Csa \ all at once
 
 $01 constant ERR
 
-variable verror?
+variable
 
-: b@ p@ dup %100000 and 0<> verror? ! ; \ see j4a.pcf, PA[5] connection. 
+: verror? p@ %100000 and 0<> ; \ see j4a.pcf, PA[5] connection. 
 
-: ERR? b@ 1 and 0= ; \ checks if a conditioner chip saw a new error condition.
+: ERR? p@ 1 and 0= ; \ checks if a conditioner chip saw a new error condition.
 
 : 2>DAC $06 $02 mp! B>SPI >SPI $06 dup mp! ; \ DAC chip wants 24 bit writes.
 
@@ -80,41 +80,41 @@ create reqCom 1 , \ set to request CONS
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 597 , \ retune this if you play with runDAC or 2>DAC
+create sdelay 594 , \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
 
-create shotcount 0. , , 
+create sc 0. , , \ shotcount
 : UD.  <# #S #> TYPE ;
-: shots shotcount 2@ ud. ;
+: shots sc 2@ ud. ;
 \ preset idle C0 value to final value (ptv: pulse tail value)
 ptv @ C0 !
 
 : endshot 0 pos ! 0 fm ! sr@0 ;
 : runDAC \ simple driver, updates at 2kHz
 \ C0 will hold idle value only, rest will come from pulse.
-ERR? verror? @ or 0<> if endshot then
+ERR? verror? or 0<> if endshot then
 
 fm @ if
 \ pv pos @ cells + @ \ get next pv[pos] sample
 sr@ \ now uses autoincrementing sample ram. 
   soffset @ + \ add soffset 
-  $31 2>DAC \ send to channel 0.
+  Cs0 2>DAC \ send to channel 0.
 pos @ 1+ 
   dup pl @ ( pulse length ) = if 
   drop 
-endshot shotcount 2@ 1 m+ shotcount 2! 
+endshot sc 2@ 1 m+ sc 2! 
 else 
   pos ! 
 then
 else \ non firing mode.
-C0 @ soffset @ + $31 2>DAC
+C0 @ soffset @ + Cs0 2>DAC
 1 us
 then
-C1 @ $32 2>DAC
-C2 @ $34 2>DAC
-C3 @ $38 2>DAC
+C1 @ Cs1 2>DAC
+C2 @ Cs2 2>DAC
+C3 @ Cs3 2>DAC
 reqCom @ if 
 $06 $04 mp!
 \ must access all conditioner chips in the one SPI access.
@@ -129,7 +129,7 @@ D3! @ dup rE and if >SPI> D3@ @ or D3@ ! else >SPI 2 us then
 $06 dup mp! 
 0 reqCom ! else 8 us then
 
-$80 dup im! ERR? and leds \ set only the 8th led to reflect ERR?
+ERR? verror? or $80 and dup im! leds \ set only the 8th led to reflect ERR?
 sdelay @ us
 
 ;
@@ -311,15 +311,14 @@ then
 : openfire 1000 firedelay ! ;
 : rapidfire 500 firedelay ! ;
 : ceasefire 0 firedelay ! hpsopoff ;
-
 : i? ( -- f )  \ nonzero (true) means ok to fire 
 \ this is very important: The refil can be late / inlet valve can be still open, and we must not fire if so, because it WILL BREAK.
 \ under that condition usually it's because of insufficient pressure at the inlet
-inlet dup ih @ < swap il @ > and \ (inlet pressure within range -- probably inlet valve has shut already.)
-    hpso hl @ > and  \ hpso > hpso low level
-    lpso ll @ > and
-    outlet dup ou @ > swap oo @ < and and \ outlet pressure within hard limits
-    full? invert and \ don't fire if outlet manifold is completely full.
+inlet dup ih @ < swap il @ > $40 dl and \ (inlet pressure within range -- probably inlet valve has shut already.)
+    hpso hl @ > $20 dl and  \ hpso > hpso low level
+    lpso ll @ > $10 dl and
+    outlet dup ou @ > swap oo @ < and 8 dl and \ outlet pressure within hard limits
+    full? invert 4 dl and \ don't fire if outlet manifold is completely full.
 ;
 
 : shoot i? if 1 fm ! then ; \ use this to override / fire manually.
@@ -334,7 +333,7 @@ firedelay @
 else \ hesitate or shoot and wait
     i? if hpsopon 1 fm !  \ shoot now
     ms \ waits here firedelay ms between shot starts
-hpsopoff \ turn off hpso pump automaticall after firedelay -- but will be back here with it on if ready to fire again immediately.
+hpsopoff \ turn off hpso pump automatically after firedelay -- but will be back here with it on if ready to fire again immediately.
 \ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
     drop \ hesitate state, fc hammers at i? until it's true, then immediately fires the next waiting shot.
@@ -366,6 +365,7 @@ wc rup or vbot or d0! ! \ tell channel 0 conditioner chip to activate 4..20mA ou
 ['] runDAC x1! \ start maxrefdes24 driver running.
 50 ms
 ERR? if 0ERR! then \ clear error conditions.
+exon \ start excitation for level detection
 ['] co x3!
 startfc
 ;

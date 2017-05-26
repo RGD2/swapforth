@@ -36,16 +36,6 @@
 \ actually also selects FPGA image number 0. (can be 0 to 3).
 \ eg: load image3: $8003 $2000 io!
 
-\ this next is for the fluid level sensor peripheral
-: exon $100 s! ; \ turns excitation square wave generator on.
-: exoff $200 s! ; \ disables excitation square wave generator.
-: ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
-: flag and 0<> ;
-: full? ex@ $4000 flag ;
-: high? ex@ $2000 flag ;
-: low? ex@ $1000 flag invert ; \ true if 'low'
-
-
 \ threadsafe IO port manipulation next: im! also works with leds to control specific leds.
 
 : p! ( pmoddata -- ) 1 io! ; \ writes to GPIO register, turns actual pins on or off.
@@ -59,12 +49,25 @@
 \ resets to all set after next io operation by same core, regardless of what the io address is.
 \ use ' ioa io@ mask and ' to select out bits as usual.
 
+: dl ( f mask -- f ) \ display a flag on a particular led, without consuming the flag
+        im! dup leds
+;
 : mp! ( mask pmoddata -- ) swap im! p! ;
 : md! ( mask pmoddir -- ) swap im! pd! ;
 : ps! ( pins-to-write -- ) dup mp! ; \ pin set write, sets particular pins, leaves others alone.
 : pc! ( pins-to-clear -- ) im! 0 p! ; \ pin clear write -- eg, 1 pc! sets the first pin only to off,
 \ ... not on - leaves others alone..
 \ don't do a read-modify-write anywhere in io space, since it's not thread-safe.
+
+
+\ this next is for the fluid level sensor peripheral
+: exon $100 s! ; \ turns excitation square wave generator on.
+: exoff $200 s! ; \ disables excitation square wave generator.
+: ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
+: flag and 0<> ;
+: full? ex@ $4000 flag ;
+: high? ex@ $2000 flag invert 2 dl invert ; \ leds will light on 'good' conditions.
+: low? ex@ $1000 flag 1 dl invert ; \ true if 'low'
 
 : xid ( -- coreId ) $2000 io@ $8000 and ; \ was : $8000 io@ ; \ this IO bit is set if not core0
 
