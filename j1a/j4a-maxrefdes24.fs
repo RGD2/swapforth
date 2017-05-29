@@ -222,7 +222,7 @@ dwc \ get the current time
         \ now should just make sure it isn't too big or too small
         ctc 2! \ save it as the 'closed time' duration, ct
 then ;
-variable sud \ speed up delta (ms / ct slower than 3)
+create sud 50 , \ speed up delta (ms / ct slower than 3)
 : close %10000000 dup p@ and swap ps! 0= if
 \ here we have just closed the manifold valve.
 dwc lcv 2!
@@ -250,7 +250,7 @@ then ;
     4 of 10 endof
     5 of 40 endof
     6 of 160 endof
-    7 of 320 endof
+    7 of 290 endof
     8 of 500 endof
     >R -5000 R> \ default which should just stop - already going slower than 30 RPM, so give up.
     endcase
@@ -294,7 +294,7 @@ oc @ 1+ dup oc ! \ increment oc and keep on stack
     \ we need to slow down just enough that with no other changes, we land on about 79% duty cycle...
     trt firedelay @ +
     0 max 2000 min \ coerce to zero if giving up, or no slower than 30 RPM otherwise.
-    dup 500 - 0> if firedelay ! else drop then \ no point unless it's to be >500. firedelay might have been 0
+    dup 499 - 0> over 0= or if firedelay ! else drop then \ only changes firedelay if changing to =0 or 500 .. 2000 
 else 
     drop \ oc < 4, means duty cycle this time hasn't reached 80% open yet.
 then
