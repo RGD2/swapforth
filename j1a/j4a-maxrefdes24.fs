@@ -42,12 +42,12 @@ variable D3!
 \ SPI command bits for conditioner chips (Dn[!@]) (use one of, zeros means nop.)
 \ $a000 constant rC \ read config
 $8000 constant rE \ read Errorflags
-$2000 constant wC \ write config
+\ $2000 constant wC \ write config
 
 \ config fields for rC and wC (combine with or)
 \ $0800 constant Vm \ volt mode (current mode if not set)
 \ or with one of the following three, else you're in standby mode (volts or not)
-$0600 constant rup \ reduced unipolar mode (0.5V or 4..20mA)
+\ $0600 constant rup \ reduced unipolar mode (0.5V or 4..20mA)
 \ $0400 constant up \ unipolar mode (0..10V or 0..20mA)
 \ $0200 constant bp \ bipolar mode (-10..10V or -20..20mA)
 \ next set of bits selects voltage brownout detection threshold.
@@ -56,7 +56,7 @@ $0600 constant rup \ reduced unipolar mode (0.5V or 4..20mA)
 \ $0000 => X == 0, or +/- 10V threshold (least sensitive)
 \ proper setting depends on what minimum overhead voltage
 \ the connected load needs to function properly (assuming loop powered load)
-$0180 constant vbot \ +/- 22V
+\ $0180 constant vbot \ +/- 22V
 \ $0020 constant tsd \ thermal shutdown protection
 \ remainder of bits should be zeros
 
@@ -359,10 +359,10 @@ then ;
 \ |       |||||||/---- input, ERR maxrefdes24
  %1000000010010110 p!  \ port initial outputs
  %1000000011011110 pd! \ initialise output chip select pins high (chip selects are active low.)
-wC dup dup dup D0! ! D1! ! D2! ! D3! !
+$2000 ( wC ) dup dup dup D0! ! D1! ! D2! ! D3! !
 \ note, doesn't do anything until the driver starts.
 bootdac
-wc rup or vbot or d0! ! \ tell channel 0 conditioner chip to activate 4..20mA output mode.
+$2780 ( wc rup or vbot or ) d0! ! \ tell channel 0 conditioner chip to activate 4..20mA output mode.
 -1 reqCom ! \ request communications to conditioner chips.
 ['] runDAC x1! \ start maxrefdes24 driver running.
 50 ms
