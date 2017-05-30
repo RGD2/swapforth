@@ -245,6 +245,7 @@ then
 then ;
 
 : ddelta ( oldd newd -- durationd ) 2swap dnegate d+ ; \ like 'swap -' but for two ud 's 
+variable sdo \ slow down override - set to anything to disable slowdown behaviour
 : trt ( n1 -- n2 ) \ assumes n1 > 3
     case
     4 of 10 endof
@@ -254,6 +255,7 @@ then ;
     8 of 500 endof
     >R -5000 R> \ default which should just stop - already going slower than 30 RPM, so give up.
     endcase
+    sdo @ if drop 0 then
 ;
 : co \ control outlet valve -- state updating loop, critical timing not necessary.
 wct
