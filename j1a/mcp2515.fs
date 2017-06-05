@@ -2,12 +2,20 @@
 
 \ it assumes #include j4a_util.fs
 \ containing words: B>SPI2 B>SPI2> >SPI2 >SPI2> pmo pmd
+: cp $8000 ;
 
-: cIdle $8000 dup dup pmd dup pmo ;
-: cSel $8000 0 pmo ;
-: creset cSel $c0 B>SPI2 cIdle ;
-: cstat cSel $a0 B>SPI2 0 >SPI2> cIdle ;
-: crstat cSel $b0 B>SPI2 0 >SPI2> cIdle ;
-: c@ ( caddrbyte -- cdata ) cSel 3 B>SPI2 B>SPI2 0 B>SPI2> cIdle ;
-: c! ( data caddrbyte -- ) cSel 2 B>SPI2 B>SPI2 B>SPI2 cIdle ;
+: <\ cp pc! ;
+: /> cp ps! ;
+: cbd <\ B>SPI2 /> ;
+: cbw <\ B>SPI2 0 >SPI2> /> ;
+
+: creset  $c0 cbd ;
+: cstat  $a0 cbw ;
+: crstat $b0 cbw ;
+: c@ ( caddrbyte -- cdata ) <\ 3 B>SPI2 B>SPI2 0 B>SPI2> /> ;
+: c! ( data caddrbyte -- ) <\ 2 B>SPI2 B>SPI2 B>SPI2 /> ;
+
+\ there's a little more refactoring that can be done, but its a case of diminishing returns at this point..
+\ maybe next time...
+
 
