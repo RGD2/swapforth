@@ -59,16 +59,6 @@
 \ ... not on - leaves others alone..
 \ don't do a read-modify-write anywhere in io space, since it's not thread-safe.
 
-
-\ this next is for the fluid level sensor peripheral
-: exon $100 s! ; \ turns excitation square wave generator on.
-: exoff $200 s! ; \ disables excitation square wave generator.
-: ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
-: flag and 0<> ;
-: full? ex@ $4000 flag ;
-: high? ex@ $2000 flag invert 2 dl invert ; \ leds will light on 'good' conditions.
-: low? ex@ $1000 flag 1 dl invert ; \ true if 'low'
-
 : xid ( -- coreId ) $2000 io@ $8000 and ; \ was : $8000 io@ ; \ this IO bit is set if not core0
 
 : B>SPI $40 io! ; \ goes at 20 Mbits/s, no need to poll for one byte with the 10MHz j4a.
