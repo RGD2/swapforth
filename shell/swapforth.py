@@ -117,7 +117,7 @@ class TetheredTarget:
         while True:
             if ser.inWaiting() == 0:
                 sys.stdout.flush()
-            c = ser.read(max(1, ser.inWaiting())).decode('utf-8')
+            c = ser.read(max(1, ser.inWaiting())) # breaks things. >:( .decode('utf-8')
             clean = c.replace(chr(30), '')
             sys.stdout.write(clean)
             r.append(clean)
