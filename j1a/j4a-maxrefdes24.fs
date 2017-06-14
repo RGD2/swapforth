@@ -1,6 +1,13 @@
 #include j4a_utils.fs
 
 
+
+\ this next is for the fluid level sensor peripheral
+: exon $100 s! ; \ turns excitation square wave generator on.
+: exoff $200 s! ; \ disables excitation square wave generator.
+: ex@ s@ $7000 and ; \ these three bits are full hi low in decreasing index order.
+: flag and 0<> ;
+
 \ #include ../../j4a-code/mrc-profile.fs
 \ defines pv pl ptv ptl
 \ the last three were 'constants' accessed by name only and not name !
@@ -184,17 +191,18 @@ variable lp \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 >r s>d >r abs rot rot s>d r> xor r> swap >r >r dabs rot tuck um* 2swap um* swap
 >r 0 d+ r> rot rot r@ um/mod rot rot r> um/mod nip swap r> if dnegate then
 ; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
-: inlet ip @ 10922 - 0 100 993  m*/ drop ; \ as below, but more accurate/slightly slower calc
+: inlet ip @ 10280 - 0 100 993  m*/ drop ; \ as below, but more accurate/slightly slower calc
 \ : inlet ip @ 10922 - 328 / 33 * ; \ theadsafe
 : hpso hp @ ;
 : lpso lp @ ;
 : outlet op @ ;
 
 create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
-create il 1800 , \ 18 bar def min - allows accumulator to fill, may need tuning.
+\ it was being used previously to detect inlet overpressure due to inlet valve failure, but the new pumps will prevent it.
+create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
 create hl 29800 , \ min HPSO, about 690 bar
-create ll 14894 , \ min LPSO, about 25 bar, one more than the max that inlet pump ought to be able to reach. 
+create ll 13302 , \ min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 24879 , \ outlet Overload, 150 bar (~230 bar is max. visible)
 create oh 20919 , \ outlet high max, 110 bar
 create ot 19929 , \ outlet target pressure 100 bar
@@ -207,6 +215,12 @@ create ou 17949 , \ outlet underpressure, 80 bar
 2 sp@ lp !
 fm @ 0= if 3 sp@ op ! then \ only update op if not actually firing right now -- deletes glitches 
 ;
+
+: full? ex@ $4000 flag ;
+: high? ex@ $2000 flag invert 2 dl invert fm @ 0= and ; \ coerced off if during a shot -- to try to ignore splashes
+\ leds will light on 'good' conditions.
+: low? ex@ $1000 flag 1 dl invert ; \ true if 'low', ie, no longer in contact with bottom probe
+ 
 
 create lov 0. , , \ last open valve time, d
 create ctc 0. , , \ closed duration time, d 
