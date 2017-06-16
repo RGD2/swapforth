@@ -193,7 +193,7 @@ variable lp
 ; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
 
 : inlet  ip @ 10280 - 0 100 993 m*/ drop ; \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
-: hpso   hp @  9584 - 0 10  29  m*/ drop ; \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
+: hpso   hp @  9576 - 0 10  29  m*/ drop ; \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
 : lpso   lp @  4965 - 0 100 397 m*/ drop ; \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 : outlet op @  9728 - 0 100 99  m*/ drop ; \ outlet pressure, 9728 null, 99 counts/bar. ~3 bar accurate
 
@@ -252,15 +252,15 @@ create vpshot 143 , \ ms time per shot (vary as needed)
 ;
 variable vm \ vent 'mode'
 : vc \ valve control
-vm @ 0<>   outlet @ oo @ > or   full? or   if 
+vm @ 0<>   outlet oo @ > or   full? or   if 
 \ there's a request, should we open or wait?
-low? invert    outlet @ ol @ >    and   outlet @ oo @ > or full? or if 
+low? invert    outlet ol @ >    and   outlet oo @ > or full? or if 
     open    ventms @ ms    close 50 ms
     \ was that enough?
     full? if 10 vpshot! then
     high? if 1 vpshot! then
     low? if -1 vpshot! then
-    outlet @ ol @ < if -10 vpshot! then
+    outlet ol @ < if -10 vpshot! then
     0 vm ! 
     then
 then ;
@@ -284,8 +284,8 @@ else
     \ because it will cause an isolated 'late' shot. 
 then
 then ;
-: startfc ['] fc x3! ;
-: stopfc x3k ;
+: startfc ['] fc x2! ;
+: stopfc x2k ;
 
 \ ==== initialisation here (ini) at end of file.
 : ini
@@ -310,7 +310,7 @@ $2780 ( wc rup or vbot or ) d0! ! \ tell channel 0 conditioner chip to activate 
 ERR? if 0ERR! then \ clear error conditions.
 exon \ start excitation for level detection
 startfc
-['] vc x2! \ start valve controller
+['] vc x3! \ start valve controller
 ;
 marker |
 : sr!v sr! sr@ ."    " .x cr cr ;
@@ -318,7 +318,7 @@ marker |
 : stat i? drop 4 io@ .x cr
 ." HPSO  :" hpso t. cr
 ." LPSO  :" lpso h. cr
-." Inlet : " inlet h. cr
+." Inlet :" inlet h. cr
 ." Outlet:" outlet h. cr
 ." ventms:" ventms @ . cr
 ." vpshot:" vpshot @ . cr
