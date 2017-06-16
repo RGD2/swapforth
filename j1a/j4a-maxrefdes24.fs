@@ -201,7 +201,7 @@ create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 
 \ it was being used previously to detect inlet overpressure due to inlet valve failure, but the new pumps will prevent it.
 create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
-create hl 29800 , \ min HPSO, about 690 bar
+create hl 17328 , \  **overridden** min HPSO, about 690 bar
 create ll 13302 , \ min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 24879 , \ outlet Overload, 150 bar (~230 bar is max. visible)
 create oh 20919 , \ outlet high max, 110 bar
