@@ -1,6 +1,6 @@
 #include j4a_utils.fs
 
-
+unused . \ spacecheck
 
 \ this next is for the fluid level sensor peripheral
 : exon $100 s! ; \ turns excitation square wave generator on.
@@ -178,6 +178,7 @@ variable FIREDELAY \ set above 332 to start fire, below to stop. 1000 = ~one/sec
 \ 3 Hz is the highest refire rate allowed == 333.
 \ : inlet ( -- inletbar*100[+/-10] ) 0 8 io! 8 io@ 10922 - 328 / 33 * ;
 
+unused . \ spacecheck
 \ all data channels from spislave module will run from 0 to 32767.
 \ 32767 == 3.3V at the ADC input, 9929.394 counts per volt.
 \ different sensors have different atmospheric pressure null values and sensitivities in counts per bar.
@@ -219,6 +220,7 @@ fm @ 0= if 3 sp@ op ! then \ only update op if not actually firing right now -- 
 ;
 
 
+unused . \ spacecheck
 : open %10000000 pc! ;
 : close %10000000 ps! ;
 
@@ -242,28 +244,29 @@ inlet dup ih @ < swap il @ > $40 dl and \ (inlet pressure within range -- probab
 ;                  \ full probe sometimes gets gunked up, but mid probe is more reliable.
 
 : shoot i? if 1 fm ! then ; \ use this to override / fire manually.
-create ventms 400 , \ ms to open outlet valve for each time.
-create vpshot 143 , \ ms time per shot (vary as needed)
+create vms 400 , \ ms to open outlet valve for each time.
+create vps 143 , \ ms time per shot (vary as needed)
 create vmn 120 , 
-: vpshot! ( n -- ) \ adds n to vps, with limits 
-    vpshot @ +
+: vps+! ( n -- ) \ adds n to vps, with limits 
+    vps @ +
     vmn @ max \ no less than this
-    ventms @ 51 - min \ but no more than whatever ventms-51 is.
-    vpshot !
+    vms @ 51 - min \ but no more than whatever vms-51 is.
+    vps !
 ;
+unused . \ space check
 variable vm \ vent 'mode'
 : vc \ valve control
 vm @ 0<>   outlet oo @ > or   full? high? and or   if 
 \ there's a request, should we open or wait?
 low? invert    outlet ol @ >    and   outlet oo @ > or if 
-    open    ventms @ ms    close 50 ms
+    open    vms @ ms    close 50 ms
     \ was that enough?
-    full? high? and   if 50 vpshot! then
-    outlet oh @ > if 10 vpshot! then
-    high? if 1 vpshot! then
-    low? if -1 vpshot! then
-    outlet ol @ < if -1 vpshot! then
-    outlet ou @ < if -10 vpshot! then 
+    full? high? and   if 50 vps+! then
+    outlet oh @ > if 10 vps+! then
+    high? if 1 vps+! then
+    low? if -1 vps+! then
+    outlet ol @ < if -1 vps+! then
+    outlet ou @ < if -10 vps+! then 
     0 vm ! 
     then
 else
@@ -277,9 +280,9 @@ FIREDELAY @
     drop \ park / ceasefire state
 else \ hesitate or shoot and wait
     i? if hpsopon 1 fm !  \ shoot now
-    ventacc @ vpshot @ + 
+    ventacc @ vps @ + 
         \ incremented total, is it big enough yet?
-        dup ventms @ > if ( it is ) ventms @ - ventacc ! 1 vm ! else ( it isn't ) ventacc ! then
+        dup vms @ > if ( it is ) vms @ - ventacc ! 1 vm ! else ( it isn't ) ventacc ! then
     ms \ waits here firedelay ms between shot starts
 hpsopoff \ turn off hpso pump automatically after firedelay -- but will be back here with it on if ready to fire again immediately.
 \ this is so if we never fire again, we don't overfill the injector while waiting.
@@ -291,6 +294,8 @@ then
 then ;
 : startfc ['] fc x2! ;
 : stopfc x2k ;
+
+unused . \ space check
 
 \ ==== initialisation here (ini) at end of file.
 : ini
@@ -325,8 +330,8 @@ marker |
 ." LPSO  :" lpso h. cr
 ." Inlet :" inlet h. cr
 ." Outlet:" outlet h. cr
-." ventms:" ventms @ . cr
-." vpshot:" vpshot @ . cr
+." ventms:" vms @ . cr
+." ventps:" vps @ . cr
 ." full? :" full? yn 
 ." high? :" high? yn 
 ." low?  :" low? yn
