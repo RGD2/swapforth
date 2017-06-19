@@ -32,8 +32,6 @@ $38 constant Cs3
 
 $01 constant ERR
 
-variable
-
 : verror? p@ %100000 and 0<> ; \ see j4a.pcf, PA[5] connection. 
 
 : ERR? p@ 1 and 0= ; \ checks if a conditioner chip saw a new error condition.
@@ -209,8 +207,8 @@ create hl 6900 , \  bar/10 min HPSO, about 690 bar
 create ll 2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 11900 , \ outlet Overload (~230 bar is max. visible)
 create oh 11500 , \ outlet high max
-create ol  10900 , \ outlet low min
-create ou  9500 , \ outlet underpressure
+create ol 10900 , \ outlet low min
+create ou 9500 , \ outlet underpressure
 
 : rundac rundac 
 0 sp@ ip !
