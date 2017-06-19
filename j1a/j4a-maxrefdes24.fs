@@ -197,7 +197,7 @@ variable lp
 : lpso   lp @  4965 - 0 100 397 m*/ drop ; \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 : outlet op @  9728 - 0 100 99  m*/ drop ; \ outlet pressure, 9728 null, 99 counts/bar. ~3 bar accurate
 
-: h. 0 <# # # [CHAR] . HOLD #S #> TYPE SPACE ;
+: h. 0 <# # # [CHAR] . HOLD #S #> TYPE SPACE ." bar " ;
 : t. 0 <# # [CHAR] . HOLD #S #> TYPE SPACE ; \ only use this with hpso -- others use h.
 
 create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
@@ -206,10 +206,10 @@ create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
 create hl 6900 , \  bar/10 min HPSO, about 690 bar
 create ll 2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
-create oo 11000 , \ outlet Overload (~230 bar is max. visible)
-create oh 6000 , \ outlet high max
-create ol 4900 , \ outlet low min
-create ou 4000 , \ outlet underpressure
+create oo 11900 , \ outlet Overload (~230 bar is max. visible)
+create oh 11500 , \ outlet high max
+create ol  10900 , \ outlet low min
+create ou  9500 , \ outlet underpressure
 
 : rundac rundac 
 0 sp@ ip !
@@ -238,31 +238,36 @@ inlet dup ih @ < swap il @ > $40 dl and \ (inlet pressure within range -- probab
     hpso hl @ > $20 dl and  \ hpso > hpso low level
     lpso ll @ > $10 dl and
     outlet dup ou @ > swap oo @ < and 8 dl and \ outlet pressure within hard limits
-    full? invert 4 dl and \ don't fire if outlet manifold is completely full.
-;
+    full? high? and   invert 4 dl and \ don't fire if outlet manifold is completely full.
+;                  \ full probe sometimes gets gunked up, but mid probe is more reliable.
 
 : shoot i? if 1 fm ! then ; \ use this to override / fire manually.
 create ventms 400 , \ ms to open outlet valve for each time.
 create vpshot 143 , \ ms time per shot (vary as needed)
+create vmn 120 , 
 : vpshot! ( n -- ) \ adds n to vps, with limits 
     vpshot @ +
-    140 max \ no less than this
+    vmn @ max \ no less than this
     ventms @ 51 - min \ but no more than whatever ventms-51 is.
     vpshot !
 ;
 variable vm \ vent 'mode'
 : vc \ valve control
-vm @ 0<>   outlet oo @ > or   full? or   if 
+vm @ 0<>   outlet oo @ > or   full? high? and or   if 
 \ there's a request, should we open or wait?
-low? invert    outlet ol @ >    and   outlet oo @ > or full? or if 
+low? invert    outlet ol @ >    and   outlet oo @ > or if 
     open    ventms @ ms    close 50 ms
     \ was that enough?
-    full? if 10 vpshot! then
+    full? high? and   if 50 vpshot! then
+    outlet oh @ > if 10 vpshot! then
     high? if 1 vpshot! then
     low? if -1 vpshot! then
-    outlet ol @ < if -10 vpshot! then
+    outlet ol @ < if -1 vpshot! then
+    outlet ou @ < if -10 vpshot! then 
     0 vm ! 
     then
+else
+outlet ol @ < if close then
 then ;
 variable ventacc \ holds accumulated vent time
 : fc \ firecontrol 
