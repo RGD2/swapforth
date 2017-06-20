@@ -169,8 +169,8 @@ sdelay @ 2* us
 : purge %1000 pc! ; \ note purge no longer disables the servovalve
 : load %1000 ps! ; \ purge ctl (see PA[3] in .pcf)
 
-: hpsopon %1000000 ps! ;
-: hpsopoff %1000000 pc! ; \ controls the high pressure seal oil pump, defaults to off.
+: pon %1000000 ps! ;
+: poff %1000000 pc! ; \ controls the high pressure seal oil pump, defaults to off.
 
 variable FIREDELAY \ set above 332 to start fire, below to stop. 1000 = ~one/sec
 \ 3 Hz is the highest refire rate allowed == 333.
@@ -203,7 +203,7 @@ create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 
 \ it was being used previously to detect inlet overpressure due to inlet valve failure, but the new pumps will prevent it.
 create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
-create hl 6900 , \  bar/10 min HPSO, about 690 bar
+create hl 3000 , \  bar/10 min HPSO, about 690 bar
 create ll 2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 11900 , \ outlet Overload (~230 bar is max. visible)
 create oh 11500 , \ outlet high max
@@ -222,9 +222,9 @@ unused . \ spacecheck
 : open %10000000 pc! ;
 : close %10000000 ps! ;
 
-: openfire 1000 FIREDELAY ! ;
-: rapidfire 500 FIREDELAY ! ;
-: ceasefire 0 FIREDELAY ! hpsopoff ;
+: openfire 1000 FIREDELAY ! pon ;
+: rapidfire 500 FIREDELAY ! pon ;
+: ceasefire 0 FIREDELAY ! poff ;
 
 : full? ex@ $4000 flag ;
 : high? ex@ $2000 flag invert 2 dl invert fm @ 0= and ; \ coerced off if during a shot -- to try to ignore splashes
@@ -277,12 +277,12 @@ FIREDELAY @
         332 - 0< if \ won't go faster than about 180 RPM, also used to park.
     drop \ park / ceasefire state
 else \ hesitate or shoot and wait
-    i? if hpsopon 1 fm !  \ shoot now
+    i? if pon 1 fm !  \ shoot now
     ventacc @ vps @ + 
         \ incremented total, is it big enough yet?
         dup vms @ > if ( it is ) vms @ - ventacc ! 1 vm ! else ( it isn't ) ventacc ! then
     ms \ waits here firedelay ms between shot starts
-hpsopoff \ turn off hpso pump automatically after firedelay -- but will be back here with it on if ready to fire again immediately.
+poff \ turn off hpso pump automatically after firedelay -- but will be back here with it on if ready to fire again immediately.
 \ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
     drop \ hesitate state, fc hammers at i? until it's true (or the thread is stopped), then immediately fires the next waiting shot.
