@@ -192,7 +192,12 @@ variable lp
 ; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
 
 : inlet  ip @ 10280 - 0 100 993 m*/ drop ; \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
-: hpso   hp @  9576 - 0 10  29  m*/ drop ; \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
+
+variable lhp \ last good hp. getting glitches on that channel for some reason.
+: hpso   hp @  9576 - 0 10  29  m*/ drop
+    dup 22000 > if ( glitch ) drop lhp @ else ( ok ) dup lhp ! then
+; \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
+
 : lpso   lp @  4965 - 0 100 397 m*/ drop ; \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 : outlet op @  9728 - 0 100 99  m*/ drop ; \ outlet pressure, 9728 null, 99 counts/bar. ~3 bar accurate
 
@@ -205,22 +210,29 @@ create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
 \ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
 create hl 3000 , \  bar/10 min HPSO, about 690 bar
 create ll 2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
-create oo 11900 , \ outlet Overload (~230 bar is max. visible)
-create oh 11500 , \ outlet high max
-create ol 10900 , \ outlet low min
-create ou 9500 , \ outlet underpressure
+create oo 12500 , \ outlet Overload (~230 bar is max. visible)
+create oh 12500 , \ outlet high max
+create ol 11400 , \ outlet low min
+create ou 11200 , \ outlet underpressure
+
+: open %10000000 pc! ;
+: close %10000000 ps! ;
+
+: vc \ valve control
+outlet oh @ > if open  then 
+outlet ol @ < if close then
+;
 
 : rundac rundac 
 0 sp@ ip !
 1 sp@ hp !
 2 sp@ lp !
-fm @ 0= if 3 sp@ op ! then \ only update op if not actually firing right now -- deletes glitches 
+3 sp@ fm @ 0= if op ! else drop then \ only update op if not actually firing right now -- deletes glitches 
+vc
 ;
 
 
 unused . \ spacecheck
-: open %10000000 pc! ;
-: close %10000000 ps! ;
 
 : openfire 1000 FIREDELAY ! pon ;
 : rapidfire 500 FIREDELAY ! pon ;
@@ -241,51 +253,20 @@ inlet dup ih @ < swap il @ > $40 dl and \ (inlet pressure within range -- probab
     full? high? and   invert 4 dl and \ don't fire if outlet manifold is completely full.
 ;                  \ full probe sometimes gets gunked up, but mid probe is more reliable.
 
-: shoot i? if 1 fm ! then ; \ use this to override / fire manually.
-create vms 400 , \ ms to open outlet valve for each time.
-create vps 143 , \ ms time per shot (vary as needed)
-create vmn 120 , 
-: vps+! ( n -- ) \ adds n to vps, with limits 
-    vps @ +
-    vmn @ max \ no less than this
-    vms @ 51 - min \ but no more than whatever vms-51 is.
-    vps !
-;
-unused . \ space check
-variable vm \ vent 'mode'
-: vc \ valve control
-vm @ 0<>   outlet oo @ > or   full? high? and or   if 
-\ there's a request, should we open or wait?
-low? invert    outlet ol @ >    and   outlet oo @ > or if 
-    open    vms @ ms    close 50 ms
-    \ was that enough?
-    full? high? and   if 50 vps+! then
-    outlet oh @ > if 10 vps+! then
-    high? if 1 vps+! then
-    low? if -1 vps+! then
-    outlet ol @ < if -1 vps+! then
-    outlet ou @ < if -10 vps+! then 
-    0 vm ! 
-    then
-else
-outlet ol @ < if close then
-then ;
-variable ventacc \ holds accumulated vent time
+: shoot i? if pon   1 fm ! then ; \ use this to override / fire manually.
 : fc \ firecontrol 
 FIREDELAY @ 
     dup
         332 - 0< if \ won't go faster than about 180 RPM, also used to park.
     drop \ park / ceasefire state
 else \ hesitate or shoot and wait
-    i? if pon 1 fm !  \ shoot now
-    ventacc @ vps @ + 
-        \ incremented total, is it big enough yet?
-        dup vms @ > if ( it is ) vms @ - ventacc ! 1 vm ! else ( it isn't ) ventacc ! then
+    i? if pon   1 fm !  \ shoot now
     ms \ waits here firedelay ms between shot starts
 poff \ turn off hpso pump automatically after firedelay -- but will be back here with it on if ready to fire again immediately.
 \ this is so if we never fire again, we don't overfill the injector while waiting.
 else 
-    drop \ hesitate state, fc hammers at i? until it's true (or the thread is stopped), then immediately fires the next waiting shot.
+    drop \ hesitate state, i? was false 
+    \ causes fc to hammer at i? until it's true (or the thread is stopped), then immediately fires the next waiting shot.
     \ this allows hesitation until conditions are acceptable, which analysis will detect as some kind of problem in the fuel system.
     \ because it will cause an isolated 'late' shot. 
 then
@@ -318,7 +299,6 @@ $2780 ( wc rup or vbot or ) d0! ! \ tell channel 0 conditioner chip to activate 
 ERR? if 0ERR! then \ clear error conditions.
 exon \ start excitation for level detection
 startfc
-['] vc x3! \ start valve controller
 ;
 marker |
 : sr!v sr! sr@ ."    " .x cr cr ;
@@ -328,8 +308,6 @@ marker |
 ." LPSO  :" lpso h. cr
 ." Inlet :" inlet h. cr
 ." Outlet:" outlet h. cr
-." ventms:" vms @ . cr
-." ventps:" vps @ . cr
 ." full? :" full? yn 
 ." high? :" high? yn 
 ." low?  :" low? yn
