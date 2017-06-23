@@ -257,10 +257,7 @@ module top(input pclk,
   always @(posedge clk) begin
     {io_rd_, io_wr_, dout_} <= {io_rd, io_wr, dout};
     io_slot_ <= io_slot;
-    if (io_rd | io_wr)
-      io_addr_ <= mem_addr;
-    else
-      io_addr_ <= 0; // because we don't want to actuate things unless there really is a read or write.
+    io_addr_ <= mem_addr;
   end
 
   // ######   GPIO (PMOD) ##########################################

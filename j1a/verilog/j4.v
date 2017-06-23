@@ -53,9 +53,9 @@ module j4(
   // this automatically includes all memory reads, instructions or otherwise.
 
 
-  // io_din needs 4 delays to be good.
-  reg [4*`WIDTH-1:0] io_din_delay = 0;
-  always @(posedge clk) io_din_delay <= {io_din, io_din_delay[4*`WIDTH-1:`WIDTH]};
+  // io_din needs 3 delays to be good.
+  reg [3*`WIDTH-1:0] io_din_delay = 0;
+  always @(posedge clk) io_din_delay <= {io_din, io_din_delay[3*`WIDTH-1:`WIDTH]};
    wire [`WIDTH-1:0] io_din_now = io_din_delay[`WIDTH-1:0];
 
 
