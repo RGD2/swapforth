@@ -85,7 +85,7 @@ create reqCom 1 , \ set to request CONS
 
 : bootdac $0200 $05 2>DAC 10 ms 0 $05 2>DAC ;
 
-create sdelay 594 , \ retune this if you play with runDAC or 2>DAC
+create sdelay 598 , \ retune this if you play with runDAC or 2>DAC
 variable fm
 variable pos
 create soffset -5350 , \ added to all C0 output, for offset correction: s/ Cs0 2>DAC / soffset @ + Cs0 2>DAC /g 
@@ -198,7 +198,7 @@ variable lp
 : n>d dup 0< if -1 else 0 then ; \ convert to signed double
 : getadc
 0 a@ 10280 - n>d 100 993 m*/ drop ip ! \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
-1 a@  9504 - n>d 10  29  m*/ drop hp ! \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
+1 a@  9504 - n>d 20  29  m*/ drop hp ! \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
 2 a@  4965 - n>d 100 397 m*/ drop lp ! \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 3 a@  9728 - n>d 100 99  m*/ drop op ! \ outlet pressure
 ;
@@ -212,11 +212,11 @@ variable lp
 : t. 0 <# # [CHAR] . HOLD #S #> TYPE SPACE ; \ only use this with hpso -- others use h.
 
 create ih  2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
-create il  1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
+create il  1150 , \ 11.5 bar def min - allows accumulator to fill, may need tuning.
 create hl 3000  , \  bar/10 min HPSO, note in dbar not kPa
 create ll  2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 12500 , \ outlet Overload (~230 bar is max. visible)
-create oh 12500 , \ outlet high max
+create oh 10000 , \ outlet high max
 create ol  8500 , \ outlet low min
 create ou  8000 , \ outlet underpressure
 
