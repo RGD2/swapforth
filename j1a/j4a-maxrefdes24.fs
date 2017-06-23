@@ -184,38 +184,43 @@ variable ip
 variable op
 variable hp
 variable lp
-\ updateps / sp@ needs to run on just one core - probably should be done just before using op value.
+
+\ updateps / sp@ needs to run on just one core
+\ this is because sp@ does a read after a write to set the packet offset
+: a@ ( ch -- data ) 0 begin drop dup sp@ dup 0<> until nip ;
+
 
 : m*/ ( d1 n2 u3 -- dquot ) \ double m-star-slash, dqout = d1 * n2 / u3
 >r s>d >r abs rot rot s>d r> xor r> swap >r >r dabs rot tuck um* 2swap um* swap
 >r 0 d+ r> rot rot r@ um/mod rot rot r> um/mod nip swap r> if dnegate then
 ; \ from GH://bewest/amforth's m-star-slash.frt. Who says forth isn't portable?
 
-: inlet  ip @ 10280 - 0 100 993 m*/ drop ; \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
-
-variable lhp \ last good hp. getting glitches on that channel for some reason.
-: hpso   hp @  9576 - 0 10  29  m*/ drop
-    dup 22000 > if ( glitch ) drop lhp @ else ( ok ) dup lhp ! then
-; \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
-
-: lpso   lp @  4965 - 0 100 397 m*/ drop ; \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
-: outlet op @  9728 - 0 100 99  m*/ drop ; \ outlet pressure, 9728 null, 99 counts/bar. ~3 bar accurate
+: n>d dup 0< if -1 else 0 then ; \ convert to signed double
+: getadc
+0 a@ 10280 - n>d 100 993 m*/ drop ip ! \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
+1 a@  9504 - n>d 10  29  m*/ drop hp ! \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
+2 a@  4965 - n>d 100 397 m*/ drop lp ! \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
+3 a@  9728 - n>d 100 99  m*/ drop op ! \ outlet pressure
+;
+\ ok for any thread to call:
+: inlet  ip @ ; 
+: hpso   hp @ ;
+: lpso   lp @ ;
+: outlet op @ ;
 
 : h. 0 <# # # [CHAR] . HOLD #S #> TYPE SPACE ." bar " ;
 : t. 0 <# # [CHAR] . HOLD #S #> TYPE SPACE ; \ only use this with hpso -- others use h.
 
-create ih 2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
-\ it was being used previously to detect inlet overpressure due to inlet valve failure, but the new pumps will prevent it.
-create il 1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
-\ these next are not scaled, see /plant/experimental/SprayBench in dicewiki.
-create hl 3000 , \  bar/10 min HPSO, about 690 bar
-create ll 2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
+create ih  2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
+create il  1600 , \ 16 bar def min - allows accumulator to fill, may need tuning.
+create hl 3000  , \  bar/10 min HPSO, note in dbar not kPa
+create ll  2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 12500 , \ outlet Overload (~230 bar is max. visible)
 create oh 12500 , \ outlet high max
-create ol 11400 , \ outlet low min
-create ou 11200 , \ outlet underpressure
+create ol  8500 , \ outlet low min
+create ou  8000 , \ outlet underpressure
 
-: open %10000000 pc! ;
+: open  %10000000 pc! ;
 : close %10000000 ps! ;
 
 : vc \ valve control
@@ -224,10 +229,6 @@ outlet ol @ < if close then
 ;
 
 : rundac rundac 
-0 sp@ ip !
-1 sp@ hp !
-2 sp@ lp !
-3 sp@ fm @ 0= if op ! else drop then \ only update op if not actually firing right now -- deletes glitches 
 vc
 ;
 
@@ -295,6 +296,7 @@ bootdac
 $2780 ( wc rup or vbot or ) d0! ! \ tell channel 0 conditioner chip to activate 4..20mA output mode.
 -1 reqCom ! \ request communications to conditioner chips.
 ['] runDAC x1! \ start maxrefdes24 driver running.
+['] getADC x3! \ start refreshing ADC data
 50 ms
 ERR? if 0ERR! then \ clear error conditions.
 exon \ start excitation for level detection
@@ -311,6 +313,7 @@ marker |
 ." full? :" full? yn 
 ." high? :" high? yn 
 ." low?  :" low? yn
+shots ."  shots so far"
 ;
 
 
