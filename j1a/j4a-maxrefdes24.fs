@@ -216,9 +216,9 @@ create il  1150 , \ 11.5 bar def min - allows accumulator to fill, may need tuni
 create hl 3000  , \  bar/10 min HPSO, note in dbar not kPa
 create ll  2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 12500 , \ outlet Overload (~230 bar is max. visible)
-create oh 10000 , \ outlet high max
+create oh 11000 , \ outlet high max
 create ol  8500 , \ outlet low min
-create ou  8000 , \ outlet underpressure
+create ou  5000 , \ outlet underpressure
 
 : open  %10000000 pc! ;
 : close %10000000 ps! ;
@@ -237,7 +237,10 @@ unused . \ spacecheck
 
 : openfire 1000 FIREDELAY ! pon ;
 : rapidfire 500 FIREDELAY ! pon ;
+: full 333 FIREDELAY ! pon ;
 : ceasefire 0 FIREDELAY ! poff ;
+: c ceasefire ;
+
 
 : full? ex@ $4000 flag ;
 : high? ex@ $2000 flag invert 2 dl invert fm @ 0= and ; \ coerced off if during a shot -- to try to ignore splashes
@@ -251,7 +254,7 @@ inlet dup ih @ < swap il @ > $40 dl and \ (inlet pressure within range -- probab
     hpso hl @ > $20 dl and  \ hpso > hpso low level
     lpso ll @ > $10 dl and
     outlet dup ou @ > swap oo @ < and 8 dl and \ outlet pressure within hard limits
-    full? high? and   invert 4 dl and \ don't fire if outlet manifold is completely full.
+    full? high? and   invert 4 dl drop \ ignore level sensor
 ;                  \ full probe sometimes gets gunked up, but mid probe is more reliable.
 
 : shoot i? if pon   1 fm ! then ; \ use this to override / fire manually.
@@ -315,5 +318,7 @@ marker |
 ." low?  :" low? yn
 shots ."  shots so far"
 ;
+: s stat ;
+marker |
 
 
