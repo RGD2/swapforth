@@ -4,6 +4,6 @@
 \ workaround for image rebuilding being broken
 new : .xt .x ; \ more space
 #include j4a-maxrefdes24.fs
-#include mrc-samples.fs
+#include ucc-samples.fs
 ini
 
