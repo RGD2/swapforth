@@ -212,7 +212,7 @@ variable lp
 : t. 0 <# # [CHAR] . HOLD #S #> TYPE SPACE ; \ only use this with hpso -- others use h.
 
 create ih  2500 , \ 25.00 bar def max - above range actually, max would be about 24, so just disables it, safe with new inlet pump system.
-create il  2140 , \ 21.4 bar def min - allows accumulator to fill, may need tuning.
+create il  2000 , \ 20.0 bar def min - allows accumulator to fill, may need tuning.
 create hl 3000  , \  bar/10 min HPSO, note in dbar not kPa
 create ll  2000 , \ bar/100 min LPSO, about 20 bar, one more than the max that inlet pump ought to be able to reach. 
 create oo 12500 , \ outlet Overload (~230 bar is max. visible)
