@@ -197,7 +197,7 @@ variable lp
 
 : n>d dup 0< if -1 else 0 then ; \ convert to signed double
 : getadc
-0 a@ 10280 - n>d 100 993 m*/ drop ip ! \ inlet pressure, 10922 null, 993 counts/bar. ~0.3 bar accurate
+0 a@  6940 - n>d 100 700 m*/ drop ip ! \ inlet pressure, 4..20mA across 1/6kR,  6940 null, 700 counts/bar. ~0.3 bar accurate
 1 a@  9504 - n>d 20  29  m*/ drop hp ! \ high pressure seal oil pressure, 9584 null, 29 counts/bar.
 2 a@  4965 - n>d 100 397 m*/ drop lp ! \ low pressure seal oil pressure, 4965 null, 397 counts/bar.
 3 a@  9728 - n>d 100 99  m*/ drop op ! \ outlet pressure
