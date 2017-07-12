@@ -47,10 +47,10 @@ $C8B5 sr!v
 $C933 sr!v
 $C9AC sr!v
 $CA20 sr!v
-\ $CA8F sr!v
-\ $CAFA sr!v
-\ $CB60 sr!v
-\ $CBC1 sr!v
+$CA8F sr!v
+$CAFA sr!v
+$CB60 sr!v
+$CBC1 sr!v
 \ $CC1E sr!v
 \ $CC76 sr!v
 \ $CCCB sr!v
@@ -81,5 +81,5 @@ $A774 sr!v
 \ same as mrc-samples, but another 10% shorter again.
 \ sames as ucc-saples, another 4 removed. (-2ms, about 10% less again )
 \ same as es-samples. "
-64 pl !  \ pulse length
+68 pl !  \ pulse length
 $A774 ptv ! \ pulse tail value
