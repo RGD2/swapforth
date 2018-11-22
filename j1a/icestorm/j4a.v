@@ -181,7 +181,7 @@ module top(input pclk,
   wire clk;
   wire resetq;
  // assign resetq = reset; // now passed through PLL to keep design in reset until lock. note active low resets.
-
+  (* BEL="X16/Y33/pll_3" *)
   SB_PLL40_CORE #(.FEEDBACK_PATH("SIMPLE"),
                   .PLLOUT_SELECT("GENCLK"),
                   .DIVR(4'b0000),

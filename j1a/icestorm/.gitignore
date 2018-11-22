@@ -1,3 +1,4 @@
 *.blif
-*.txt
+*.asc
+*.json
 *.ex
